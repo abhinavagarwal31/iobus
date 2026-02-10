@@ -1,0 +1,4 @@
+# Core dependencies for macOS server
+pyobjc-core>=10.0
+pyobjc-framework-Quartz>=10.0
+pyobjc-framework-ApplicationServices>=10.0
