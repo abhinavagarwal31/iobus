@@ -108,7 +108,7 @@ IOBus/
 
 ```bash
 # 1. Clone and enter the repository
-git clone <repo-url>
+git clone https://github.com/abhinavagarwal31/iobus.git
 cd IOBus
 
 # 2. Create and activate a virtual environment
