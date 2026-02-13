@@ -120,7 +120,6 @@ fun ControlScreen(
                             .systemBarsPadding(),
                     ) {
                         PortraitStatusBar(
-                            host = connectionManager.host,
                             currentMode = inputMode,
                             onModeSelected = { m ->
                                 inputMode = if (m == inputMode) InputMode.HOME else m
@@ -144,7 +143,6 @@ fun ControlScreen(
                 InputMode.KEYBOARD -> {
                     Column(modifier = Modifier.fillMaxSize()) {
                         HudStatusBar(
-                            host = connectionManager.host,
                             currentMode = inputMode,
                             onModeSelected = { m ->
                                 inputMode = if (m == inputMode) InputMode.HOME else m
@@ -164,7 +162,6 @@ fun ControlScreen(
                 InputMode.TRACKPAD -> {
                     Column(modifier = Modifier.fillMaxSize()) {
                         HudStatusBar(
-                            host = connectionManager.host,
                             currentMode = inputMode,
                             onModeSelected = { m ->
                                 inputMode = if (m == inputMode) InputMode.HOME else m
@@ -186,7 +183,6 @@ fun ControlScreen(
                 InputMode.COMBINED -> {
                     Column(modifier = Modifier.fillMaxSize()) {
                         HudStatusBar(
-                            host = connectionManager.host,
                             currentMode = inputMode,
                             onModeSelected = { m ->
                                 inputMode = if (m == inputMode) InputMode.HOME else m
@@ -464,7 +460,6 @@ private fun ModeSelectorRow(
 
 @Composable
 private fun PortraitStatusBar(
-    host: String,
     currentMode: InputMode,
     onModeSelected: (InputMode) -> Unit,
     onHome: () -> Unit,
@@ -567,7 +562,6 @@ private fun PortraitStatusBar(
 
 @Composable
 private fun HudStatusBar(
-    host: String,
     currentMode: InputMode,
     onModeSelected: (InputMode) -> Unit,
     onHome: () -> Unit,

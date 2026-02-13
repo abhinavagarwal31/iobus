@@ -15,7 +15,6 @@ import argparse
 import asyncio
 import logging
 import signal
-import sys
 
 from server.config import ServerConfig
 from server.discovery import print_connection_info

@@ -166,7 +166,7 @@ fun KeyboardPanel(
         }
     }
 
-    // ── JARVIS deferred-feature toast overlay ──
+    // ── Deferred-feature toast overlay ──
     val toastAlpha = jarvisToastAlpha.value
     if (toastAlpha > 0f) {
         Box(
@@ -199,7 +199,7 @@ fun KeyboardPanel(
                     .padding(horizontal = 20.dp, vertical = 8.dp),
             ) {
                 Text(
-                    text = "JARVIS is still working on this feature",
+                    text = "Not available in v1",
                     color = HudCyan.copy(alpha = toastAlpha * 0.9f),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Light,

@@ -415,11 +415,6 @@ def encode_pong() -> bytes:
     return Header(PROTOCOL_VERSION, MessageType.PONG, 0).encode()
 
 
-def encode_disconnect() -> bytes:
-    """Encode a DISCONNECT message (header only, no payload)."""
-    return Header(PROTOCOL_VERSION, MessageType.DISCONNECT, 0).encode()
-
-
 def encode_error(message: str) -> bytes:
     """Encode an ERROR message with a UTF-8 error string."""
     payload = message.encode("utf-8")[:256]  # Cap error messages at 256 bytes
@@ -430,61 +425,3 @@ def encode_error(message: str) -> bytes:
 def decode_error(payload: bytes) -> str:
     """Decode an ERROR message payload into a string."""
     return payload.decode("utf-8", errors="replace")
-
-
-# ---------------------------------------------------------------------------
-# Dispatch decoder
-# ---------------------------------------------------------------------------
-
-# Type alias for all decoded message types
-DecodedMessage = (
-    HandshakeReq | HandshakeAck | HandshakeReject
-    | MouseMove | MouseClick | MouseScroll | MouseDrag
-    | KeyEvent | SystemAction | LaunchApp | str  # str for ERROR payload
-)
-
-# Map message types to their decoder
-_DECODERS: dict[MessageType, type | None] = {
-    MessageType.HANDSHAKE_REQ: HandshakeReq,
-    MessageType.HANDSHAKE_ACK: HandshakeAck,
-    MessageType.HANDSHAKE_REJECT: HandshakeReject,
-    MessageType.PING: None,
-    MessageType.PONG: None,
-    MessageType.DISCONNECT: None,
-    MessageType.MOUSE_MOVE: MouseMove,
-    MessageType.MOUSE_CLICK: MouseClick,
-    MessageType.MOUSE_SCROLL: MouseScroll,
-    MessageType.MOUSE_DRAG: MouseDrag,
-    MessageType.KEY_EVENT: KeyEvent,
-    MessageType.SYSTEM_ACTION: SystemAction,
-    MessageType.LAUNCH_APP: LaunchApp,
-    MessageType.GET_SYSTEM_STATE: None,
-    MessageType.SYSTEM_STATE_RESPONSE: SystemStateResponse,
-    MessageType.ACK: Ack,
-    MessageType.COMMAND_ERROR: CommandError,
-    MessageType.ERROR: None,  # handled separately
-}
-
-
-def decode_message(data: bytes) -> tuple[Header, DecodedMessage | None]:
-    """Decode a complete message (header + payload) from raw bytes.
-
-    Returns:
-        (header, decoded_payload) where decoded_payload is ``None`` for
-        payload-less messages like PING/PONG/DISCONNECT.
-
-    Raises:
-        ValueError: If the data is too short or the message type is unknown.
-    """
-    header = Header.decode(data)
-    payload = data[HEADER_SIZE:HEADER_SIZE + header.payload_length]
-
-    if header.msg_type == MessageType.ERROR:
-        return header, decode_error(payload)
-
-    decoder_cls = _DECODERS.get(header.msg_type)
-    if decoder_cls is None:
-        # Payload-less message (PING, PONG, DISCONNECT) or unknown
-        return header, None
-
-    return header, decoder_cls.decode(payload)

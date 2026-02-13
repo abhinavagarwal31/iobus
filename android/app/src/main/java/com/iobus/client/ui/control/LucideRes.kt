@@ -6,7 +6,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.unit.dp
 import com.iobus.client.R
 
 /**
@@ -31,7 +30,6 @@ object LucideRes {
     @DrawableRes val Power = R.drawable.ic_power
     @DrawableRes val Moon = R.drawable.ic_moon
     @DrawableRes val RotateCcw = R.drawable.ic_rotate_ccw
-    @DrawableRes val Unplug = R.drawable.ic_unplug
 
     // Brightness
     @DrawableRes val Sun = R.drawable.ic_sun
@@ -45,7 +43,6 @@ object LucideRes {
     // Media
     @DrawableRes val SkipBack = R.drawable.ic_skip_back
     @DrawableRes val Play = R.drawable.ic_play
-    @DrawableRes val Pause = R.drawable.ic_pause
     @DrawableRes val SkipForward = R.drawable.ic_skip_forward
 
     // Misc

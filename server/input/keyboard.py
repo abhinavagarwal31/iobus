@@ -88,7 +88,6 @@ _KEYCODE_MAP: dict[int, int] = {
     # Modifier keys (as key codes, for standalone key events)
     ProtocolKeyCode.KEY_LEFT_META: 0x37,      # Left Cmd
     ProtocolKeyCode.KEY_LEFT_SHIFT: 0x38,
-    # KEY_CAPS_LOCK removed — deferred to v2 (unreliable via synthetic injection)
     ProtocolKeyCode.KEY_LEFT_ALT: 0x3A,       # Left Option
     ProtocolKeyCode.KEY_LEFT_CONTROL: 0x3B,
     ProtocolKeyCode.KEY_RIGHT_SHIFT: 0x3C,
