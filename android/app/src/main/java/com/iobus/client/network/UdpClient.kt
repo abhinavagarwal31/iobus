@@ -54,16 +54,6 @@ class UdpClient(
     }
 
     /**
-     * Update the target port (e.g. after handshake ack provides server UDP port).
-     */
-    fun updatePort(newPort: Int): UdpClient {
-        return UdpClient(host, newPort).also {
-            it.socket = this.socket
-            it.address = this.address
-        }
-    }
-
-    /**
      * Close the UDP socket.
      */
     fun close() {

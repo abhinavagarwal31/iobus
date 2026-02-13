@@ -31,6 +31,14 @@ object MessageType {
     // Data plane (UDP) — System actions
     const val SYSTEM_ACTION: Byte = 0x40
 
+    // Data plane (UDP) — App launcher
+    const val LAUNCH_APP: Byte = 0x50
+
+    // Response / ack (TCP)
+    const val SYSTEM_STATE_RESPONSE: Byte = 0x60
+    const val ACK: Byte = 0x61
+    const val COMMAND_ERROR: Byte = 0x62
+
     // Error
     const val ERROR: Byte = 0xFF.toByte()
 }
@@ -63,7 +71,19 @@ object SystemActionId {
     const val LOCK_SCREEN: Byte = 1
     const val POWER_DIALOG: Byte = 2
     const val SLEEP: Byte = 3
+    const val SHUTDOWN: Byte = 4
+    const val RESTART: Byte = 5
 }
+
+/**
+ * Decoded system state from SYSTEM_STATE_RESPONSE.
+ */
+data class SystemStateData(
+    val brightness: Int,
+    val volume: Int,
+    val isMuted: Boolean,
+    val isLocked: Boolean,
+)
 
 /**
  * Decoded handshake acknowledgement from the server.
@@ -217,5 +237,36 @@ object Messages {
         payload.put(actionId)
 
         return encodeHeader(MessageType.SYSTEM_ACTION, payloadSize) + payload.array()
+    }
+
+    // ---- System state (TCP) ----
+
+    fun decodeSystemState(payload: ByteArray): SystemStateData {
+        val buf = ByteBuffer.wrap(payload)
+        buf.order(ByteOrder.BIG_ENDIAN)
+        val brightness = buf.getShort().toInt() and 0xFFFF
+        val volume = buf.getShort().toInt() and 0xFFFF
+        val flags = buf.getShort().toInt() and 0xFFFF
+        return SystemStateData(
+            brightness = brightness,
+            volume = volume,
+            isMuted = (flags and 0x01) != 0,
+            isLocked = (flags and 0x02) != 0,
+        )
+    }
+
+    // ---- App launcher (UDP) ----
+
+    fun encodeLaunchApp(timestamp: Long, appName: String): ByteArray {
+        val nameBytes = appName.toByteArray(Charsets.UTF_8)
+        val truncated = if (nameBytes.size > 128) nameBytes.copyOf(128) else nameBytes
+        val payloadSize = 4 + 1 + truncated.size  // timestamp(4) + name_len(1) + name(var)
+        val payload = ByteBuffer.allocate(payloadSize)
+        payload.order(ByteOrder.BIG_ENDIAN)
+        payload.putInt((timestamp and 0xFFFFFFFFL).toInt())
+        payload.put(truncated.size.toByte())
+        payload.put(truncated)
+
+        return encodeHeader(MessageType.LAUNCH_APP, payloadSize) + payload.array()
     }
 }

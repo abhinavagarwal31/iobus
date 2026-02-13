@@ -1,98 +1,102 @@
-# IOBus
+# IOBus (Temporary Codename)
 
-Low-latency wireless Android → macOS remote control system.
+Low-latency wireless remote control system that turns an Android phone into a full keyboard and trackpad for macOS. Communicates over local Wi-Fi using a custom binary protocol with no internet dependency.
 
-A phone acts as a full MacBook-style keyboard and trackpad for your Mac,
-communicating over local Wi-Fi with no internet dependency.
+## Features (v1)
 
-## Project Status
-
-**v1 — Complete (server + Android client implemented)**
+- Trackpad with move, tap, two-finger scroll, right-click, and drag
+- Full on-screen keyboard with modifier tracking (Shift, Ctrl, Alt, Cmd) and function keys
+- System controls: brightness, volume, media playback, screen lock, power actions
+- Combined split-screen mode (trackpad + keyboard side-by-side in landscape)
+- Saved server presets for quick reconnection
+- Passcode-protected shutdown/restart actions
+- Single-client TCP handshake with UDP data plane for minimal latency
 
 ## Architecture
 
 ```
-┌────────────────────┐         Wi-Fi LAN          ┌────────────────────┐
-│   Android Phone    │  ──── UDP (input events) ──→│   macOS Server     │
-│   (Kotlin/Compose) │  ──── TCP (control/hs)  ──→│   (Python 3.12)    │
-│                    │                             │                    │
-│  ┌──────────────┐  │                             │  ┌──────────────┐  │
-│  │  Trackpad UI │  │   MouseMove/Click/Scroll    │  │ MouseController │
-│  │  Keyboard UI │  │   KeyEvent (down/up+mods)   │  │ KeyboardController│
-│  │  Connection  │  │   Handshake/Keepalive/Disc  │  │ SystemActions │  │
-│  └──────────────┘  │                             │  └──────────────┘  │
-└────────────────────┘                             └────────────────────┘
+Android Phone (Kotlin/Compose)          macOS Server (Python 3.12)
++--------------------------+            +--------------------------+
+| TouchProcessor           | -- UDP --> | MouseController (CGEvent)|
+| KeyProcessor             | -- UDP --> | KeyboardController       |
+| ConnectionManager        | -- TCP --> | TCPControlServer         |
+| ControlsPanel            | -- UDP --> | SystemActions            |
++--------------------------+            +--------------------------+
 ```
+
+- **TCP (port 9800)**: Handshake, keepalive, disconnect, system state queries, app launch responses
+- **UDP (port 9801)**: Mouse events, key events, system actions, app launch commands
+- **Wire format**: 4-byte header `[version:u8][type:u8][payload_len:u16be]` + variable payload
 
 ## Project Structure
 
 ```
 IOBus/
-├── server/                  # macOS host (Python 3.12)
-│   ├── transport/           # TCP control plane + UDP data plane
-│   │   ├── tcp_server.py    # Handshake, keepalive, single-client
-│   │   └── udp_server.py    # Stateless input event dispatch
-│   ├── input/               # macOS input injection (CGEvent API)
-│   │   ├── mouse.py         # Move, click, scroll, drag
-│   │   ├── keyboard.py      # Key down/up with full modifier support
-│   │   └── actions.py       # Lock screen, power dialog, sleep
-│   ├── main.py              # Entry point with argparse
-│   ├── config.py            # ServerConfig dataclass
-│   ├── permissions.py       # Accessibility permission check
-│   └── discovery.py         # LAN IP detection + banner
-├── protocol/                # Shared protocol (platform-neutral)
-│   ├── messages.py          # 12 message types, binary encode/decode
-│   ├── keycodes.py          # 95 platform-neutral key codes
+├── protocol/                # Shared protocol definitions (Python, mirrored in Kotlin)
+│   ├── messages.py          # Message types, binary encode/decode
+│   ├── keycodes.py          # Platform-neutral key codes
 │   └── constants.py         # Version, ports, timeouts
-├── android/                 # Android client (Kotlin + Jetpack Compose)
+├── server/                  # macOS server (Python 3.12, asyncio)
+│   ├── main.py              # Entry point
+│   ├── config.py            # ServerConfig with CLI/env overrides
+│   ├── permissions.py       # Accessibility permission gate
+│   ├── discovery.py         # LAN IP detection
+│   ├── transport/           # TCP + UDP server implementations
+│   └── input/               # CGEvent injection (mouse, keyboard, system actions)
+├── android/                 # Android client (Kotlin, Jetpack Compose)
 │   └── app/src/main/java/com/iobus/client/
-│       ├── MainActivity.kt  # Entry + navigation (NavHost)
 │       ├── protocol/        # Constants, KeyCodes, Messages (mirrors Python)
-│       ├── network/         # TcpClient, UdpClient, ConnectionManager
-│       ├── input/           # TouchProcessor, KeyProcessor
-│       └── ui/
-│           ├── theme/       # HUD dark theme (Color, Type, Shape, Theme)
-│           ├── connection/  # ConnectionScreen (IP input, status)
-│           └── control/     # ControlScreen, TrackpadSurface, KeyboardPanel
-├── notes/                   # Architecture docs, decision log
-└── .venv/                   # Python virtual environment (not committed)
+│       ├── network/         # TCP/UDP clients, ConnectionManager
+│       ├── input/           # Touch and key event processors
+│       ├── security/        # Passcode store (SHA-256 hashed)
+│       └── ui/              # Compose UI (connection, controls, keyboard, trackpad)
+└── notes/                   # Architecture and design documentation
 ```
 
-## Requirements
+## Running the macOS Server
 
-- **macOS server**: Python 3.12, macOS Accessibility permission granted
-- **Android client**: Android 10+ (API 29+), landscape phone
-- **Network**: Same Wi-Fi network (or phone hotspot)
-
-## Quick Start — Server
+Requires Python 3.12+ and macOS Accessibility permission.
 
 ```bash
-# Activate virtual environment
+# Create and activate virtual environment
+python3 -m venv .venv
 source .venv/bin/activate
+
+# Install dependencies
+pip install -r server/requirements.txt
 
 # Run server
 python -m server
 
 # With options
-python -m server --bind 0.0.0.0 --tcp-port 9800 --log-level DEBUG
+python -m server --tcp-port 9800 --udp-port 9801 --log-level INFO
 ```
 
-The server will print the connection IP and ports. Grant Accessibility permission
-when prompted (System Settings → Privacy & Security → Accessibility).
+Grant Accessibility permission when prompted: System Settings > Privacy & Security > Accessibility.
 
-## Quick Start — Android Client
+The server prints the local IP and ports on startup. Both the phone and Mac must be on the same Wi-Fi network.
 
-1. Open `android/` in Android Studio
-2. Build and run on your phone
-3. Enter the server IP shown in the terminal
-4. Tap CONNECT
+## Building the Android App
 
-## Protocol
+Requires Android Studio with SDK 36 and JDK 17.
 
-Binary, 4-byte header: `[version:u8][type:u8][payload_len:u16be]`
+1. Open the `android/` directory in Android Studio
+2. Sync Gradle
+3. Build and run on a device running Android 10+ (API 29)
+4. Enter the server IP shown in the terminal and tap Connect
 
-- **TCP** (port 9800): Handshake, keepalive (PING/PONG), disconnect
-- **UDP** (port 9801): MouseMove, MouseClick, MouseScroll, MouseDrag, KeyEvent
+## Permissions
+
+| Platform | Permission           | Purpose                              |
+| -------- | -------------------- | ------------------------------------ |
+| macOS    | Accessibility        | Required for CGEvent input injection |
+| Android  | INTERNET             | TCP/UDP socket communication         |
+| Android  | ACCESS_WIFI_STATE    | Local network discovery              |
+| Android  | ACCESS_NETWORK_STATE | Connection status detection          |
+
+## Development Status
+
+v1 -- feature complete, stabilized.
 
 ## License
 

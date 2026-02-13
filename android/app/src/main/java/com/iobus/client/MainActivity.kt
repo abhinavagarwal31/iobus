@@ -17,6 +17,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.iobus.client.network.ConnectionManager
 import com.iobus.client.network.ConnectionState
+import com.iobus.client.network.SavedServersStore
+import com.iobus.client.security.PasscodeStore
 import com.iobus.client.ui.connection.ConnectionScreen
 import com.iobus.client.ui.control.ControlScreen
 import com.iobus.client.ui.theme.IOBusTheme
@@ -28,6 +30,16 @@ import com.iobus.client.ui.theme.IOBusTheme
 class IOBusApplication : Application() {
     companion object {
         val connectionManager = ConnectionManager()
+        lateinit var savedServersStore: SavedServersStore
+            private set
+        lateinit var passcodeStore: PasscodeStore
+            private set
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        savedServersStore = SavedServersStore(this)
+        passcodeStore = PasscodeStore(this)
     }
 }
 

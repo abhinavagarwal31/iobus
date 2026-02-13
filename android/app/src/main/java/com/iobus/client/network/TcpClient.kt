@@ -3,6 +3,7 @@ package com.iobus.client.network
 import com.iobus.client.protocol.Constants
 import com.iobus.client.protocol.MessageType
 import com.iobus.client.protocol.Messages
+import com.iobus.client.protocol.SystemStateData
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -20,6 +21,7 @@ import java.nio.ByteBuffer
  *  - Connect to server, send handshake, validate ack
  *  - Run keepalive loop (send PING, expect PONG)
  *  - Send DISCONNECT on graceful close
+ *  - Dispatch incoming TCP responses (ACK, ERROR, SYSTEM_STATE_RESPONSE)
  *  - Notify owner of connection events via callbacks
  */
 class TcpClient(
@@ -28,6 +30,9 @@ class TcpClient(
     private val deviceName: String = "Android",
     private val onStateChange: (ConnectionState) -> Unit = {},
     private val onError: (String) -> Unit = {},
+    private val onSystemState: (SystemStateData) -> Unit = {},
+    private val onLaunchAck: (Int) -> Unit = {},
+    private val onLaunchError: (Int) -> Unit = {},
 ) {
     private var socket: Socket? = null
     private var outputStream: OutputStream? = null
@@ -89,6 +94,13 @@ class TcpClient(
         close()
     }
 
+    /**
+     * Send a raw TCP message (for LAUNCH_APP, GET_SYSTEM_STATE, etc.).
+     */
+    fun sendTcp(data: ByteArray) {
+        sendRaw(data)
+    }
+
     // ------------------------------------------------
     // Handshake
     // ------------------------------------------------
@@ -136,8 +148,7 @@ class TcpClient(
                 val type = header[1].toInt() and 0xFF
                 val payloadLen = ByteBuffer.wrap(header, 2, 2).short.toInt() and 0xFFFF
 
-                // Consume payload even if we don't use it
-                if (payloadLen > 0) readExact(payloadLen)
+                val payload = if (payloadLen > 0) readExact(payloadLen) else ByteArray(0)
 
                 when (type) {
                     // PING → respond with PONG
@@ -146,12 +157,31 @@ class TcpClient(
                             sendRaw(Messages.encodePong())
                         } catch (_: IOException) { }
                     }
-                    // PONG → keepalive ack, nothing needed
+                    // PONG → keepalive ack
                     MessageType.PONG.toInt() and 0xFF -> { }
                     // DISCONNECT → server closing
                     MessageType.DISCONNECT.toInt() and 0xFF -> {
                         close()
                         return
+                    }
+                    // SYSTEM_STATE_RESPONSE
+                    MessageType.SYSTEM_STATE_RESPONSE.toInt() and 0xFF -> {
+                        if (payload.size >= 8) {
+                            val state = Messages.decodeSystemState(payload)
+                            onSystemState(state)
+                        }
+                    }
+                    // ACK (launch success)
+                    MessageType.ACK.toInt() and 0xFF -> {
+                        if (payload.isNotEmpty()) {
+                            onLaunchAck(payload[0].toInt() and 0xFF)
+                        }
+                    }
+                    // COMMAND_ERROR (launch failure)
+                    MessageType.COMMAND_ERROR.toInt() and 0xFF -> {
+                        if (payload.isNotEmpty()) {
+                            onLaunchError(payload[0].toInt() and 0xFF)
+                        }
                     }
                 }
             }
@@ -168,7 +198,7 @@ class TcpClient(
 
     private suspend fun keepaliveLoop() {
         while (isActive()) {
-            delay(Constants.KEEPALIVE_INTERVAL_SEC * 1000L)
+            delay(Constants.KEEPALIVE_INTERVAL_SECONDS * 1000L)
             try {
                 sendRaw(Messages.encodePing())
             } catch (e: IOException) {

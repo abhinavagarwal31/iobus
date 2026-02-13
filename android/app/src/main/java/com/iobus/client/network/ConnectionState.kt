@@ -8,6 +8,5 @@ enum class ConnectionState {
     CONNECTING,
     HANDSHAKING,
     CONNECTED,
-    RECONNECTING,
     ERROR,
 }

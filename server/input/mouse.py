@@ -61,10 +61,7 @@ def _post_event(event: Quartz.CGEventRef) -> None:
 
 
 class MouseController:
-    """Manages mouse state and injects mouse events via CGEvent API."""
-
-    def __init__(self) -> None:
-        self._held_button: MouseButton | None = None
+    """Injects mouse events via CGEvent API."""
 
     def handle_move(self, msg: MouseMove) -> None:
         """Move the cursor by a relative delta."""

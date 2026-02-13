@@ -46,20 +46,20 @@ object KeyboardLayout {
     // Row 1: Function row (half-height, dual-label: fn name + media symbol)
     val functionRow = listOf(
         KeyDef("esc", KeyCodes.KEY_ESCAPE, width = 1.0f, type = KeyType.FUNCTION),
-        KeyDef("F1", KeyCodes.KEY_F1, type = KeyType.FUNCTION, secondaryLabel = "🔅"),
-        KeyDef("F2", KeyCodes.KEY_F2, type = KeyType.FUNCTION, secondaryLabel = "🔆"),
+        KeyDef("F1", KeyCodes.KEY_F1, type = KeyType.FUNCTION, secondaryLabel = "BrDn"),
+        KeyDef("F2", KeyCodes.KEY_F2, type = KeyType.FUNCTION, secondaryLabel = "BrUp"),
         KeyDef("F3", KeyCodes.KEY_F3, type = KeyType.FUNCTION, secondaryLabel = "MC"),    // Mission Control
         KeyDef("F4", KeyCodes.KEY_F4, type = KeyType.FUNCTION, secondaryLabel = "SL"),    // Spotlight
         KeyDef("F5", KeyCodes.KEY_F5, type = KeyType.FUNCTION, secondaryLabel = "DI"),    // Dictation
         KeyDef("F6", KeyCodes.KEY_F6, type = KeyType.FUNCTION, secondaryLabel = "DN"),    // Do Not Disturb
-        KeyDef("F7", KeyCodes.KEY_F7, type = KeyType.FUNCTION, secondaryLabel = "⏮"),
-        KeyDef("F8", KeyCodes.KEY_F8, type = KeyType.FUNCTION, secondaryLabel = "⏯"),
-        KeyDef("F9", KeyCodes.KEY_F9, type = KeyType.FUNCTION, secondaryLabel = "⏭"),
-        KeyDef("F10", KeyCodes.KEY_F10, type = KeyType.FUNCTION, secondaryLabel = "🔇"),
-        KeyDef("F11", KeyCodes.KEY_F11, type = KeyType.FUNCTION, secondaryLabel = "🔉"),
-        KeyDef("F12", KeyCodes.KEY_F12, type = KeyType.FUNCTION, secondaryLabel = "🔊"),
+        KeyDef("F7", KeyCodes.KEY_F7, type = KeyType.FUNCTION, secondaryLabel = "Prev"),
+        KeyDef("F8", KeyCodes.KEY_F8, type = KeyType.FUNCTION, secondaryLabel = "Play"),
+        KeyDef("F9", KeyCodes.KEY_F9, type = KeyType.FUNCTION, secondaryLabel = "Next"),
+        KeyDef("F10", KeyCodes.KEY_F10, type = KeyType.FUNCTION, secondaryLabel = "Mute"),
+        KeyDef("F11", KeyCodes.KEY_F11, type = KeyType.FUNCTION, secondaryLabel = "VDn"),
+        KeyDef("F12", KeyCodes.KEY_F12, type = KeyType.FUNCTION, secondaryLabel = "VUp"),
         // Custom "fun key" replaces the power button position
-        KeyDef("⚡", 0, width = 1.0f, type = KeyType.FUN_KEY),
+        KeyDef("FN*", 0, width = 1.0f, type = KeyType.FUN_KEY),
     )
 
     // Row 2: Number row

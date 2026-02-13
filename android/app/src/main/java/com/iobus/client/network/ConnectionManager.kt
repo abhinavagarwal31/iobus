@@ -123,6 +123,11 @@ class ConnectionManager {
         sendInput(Messages.encodeSystemAction(timestamp, actionId))
     }
 
+    fun sendLaunchApp(appName: String) {
+        val timestamp = System.currentTimeMillis()
+        sendInput(Messages.encodeLaunchApp(timestamp, appName))
+    }
+
     // ------------------------------------------------
     // Internal
     // ------------------------------------------------

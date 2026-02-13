@@ -14,22 +14,28 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 from dataclasses import dataclass, field
 
 from protocol.constants import PROTOCOL_VERSION
 from protocol.messages import (
     HEADER_SIZE,
+    Ack,
+    CommandError,
     HandshakeAck,
     HandshakeReject,
     HandshakeReq,
     Header,
+    LaunchApp,
     MessageType,
+    SystemStateResponse,
     encode_error,
     encode_ping,
     encode_pong,
 )
 from server.config import ServerConfig
+from server.input.actions import SystemActions
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +46,7 @@ class ClientSession:
     name: str
     address: tuple[str, int]
     protocol_version: int
+    session_id: int = 0
     connected_at: float = field(default_factory=time.monotonic)
     last_pong: float = field(default_factory=time.monotonic)
 
@@ -51,9 +58,11 @@ class TCPControlProtocol(asyncio.Protocol):
         self,
         server: TCPControlServer,
         config: ServerConfig,
+        system_actions: SystemActions,
     ) -> None:
         self._server = server
         self._config = config
+        self._system = system_actions
         self._transport: asyncio.Transport | None = None
         self._buffer = bytearray()
         self._session: ClientSession | None = None
@@ -111,6 +120,10 @@ class TCPControlProtocol(asyncio.Protocol):
                 self._on_pong()
             case MessageType.DISCONNECT:
                 self._on_disconnect()
+            case MessageType.GET_SYSTEM_STATE:
+                self._on_get_system_state()
+            case MessageType.LAUNCH_APP:
+                self._on_launch_app(payload)
             case _:
                 logger.warning("Unexpected TCP message type: 0x%02X", header.msg_type)
                 self._send(encode_error(f"Unexpected message type: 0x{header.msg_type:02X}"))
@@ -147,6 +160,7 @@ class TCPControlProtocol(asyncio.Protocol):
             name=req.client_name,
             address=self._peer,
             protocol_version=req.client_version,
+            session_id=int.from_bytes(os.urandom(4), "big"),
         )
         self._server.set_client(self._session)
 
@@ -157,7 +171,10 @@ class TCPControlProtocol(asyncio.Protocol):
             keepalive_interval=self._config.keepalive_interval,
         )
         self._send(ack.encode())
-        logger.info("Accepted client '%s' — UDP port %d", req.client_name, self._config.udp_port)
+        logger.info(
+            "Accepted client '%s' — UDP port %d, session 0x%08X",
+            req.client_name, self._config.udp_port, self._session.session_id,
+        )
 
     def _on_ping(self) -> None:
         self._send(encode_pong())
@@ -173,6 +190,28 @@ class TCPControlProtocol(asyncio.Protocol):
             self._session = None
         if self._transport:
             self._transport.close()
+
+    def _on_get_system_state(self) -> None:
+        """Respond with current brightness and volume."""
+        brightness = SystemActions.get_brightness()
+        volume = SystemActions.get_volume()
+        logger.info("System state request → brightness=%.2f, volume=%.2f", brightness, volume)
+        resp = SystemStateResponse(brightness=brightness, volume=volume)
+        self._send(resp.encode())
+
+    def _on_launch_app(self, payload: bytes) -> None:
+        """Launch app by name, respond with ACK or ERROR."""
+        launch = LaunchApp.decode(payload)
+        if not launch.app_name:
+            logger.warning("Empty app name in LAUNCH_APP")
+            self._send(CommandError(app_id=0).encode())
+            return
+        try:
+            self._system.launch_app(launch.app_name)
+            self._send(Ack(app_id=0).encode())
+        except Exception:
+            logger.exception("Failed to launch app '%s'", launch.app_name)
+            self._send(CommandError(app_id=0).encode())
 
     def _send(self, data: bytes) -> None:
         if self._transport and not self._transport.is_closing():
@@ -194,8 +233,9 @@ class TCPControlProtocol(asyncio.Protocol):
 class TCPControlServer:
     """Manages the TCP listener and connected client state."""
 
-    def __init__(self, config: ServerConfig) -> None:
+    def __init__(self, config: ServerConfig, system_actions: SystemActions) -> None:
         self._config = config
+        self._system = system_actions
         self._client: ClientSession | None = None
         self._protocols: list[TCPControlProtocol] = []
         self._server: asyncio.AbstractServer | None = None
@@ -226,7 +266,7 @@ class TCPControlServer:
         logger.info("TCP control server listening on %s:%d", self._config.bind_address, self._config.tcp_port)
 
     def _make_protocol(self) -> TCPControlProtocol:
-        proto = TCPControlProtocol(self, self._config)
+        proto = TCPControlProtocol(self, self._config, self._system)
         self._protocols.append(proto)
         return proto
 

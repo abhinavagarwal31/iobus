@@ -19,6 +19,7 @@ import sys
 
 from server.config import ServerConfig
 from server.discovery import print_connection_info
+from server.input.actions import SystemActions
 from server.input.keyboard import KeyboardController
 from server.input.mouse import MouseController
 from server.permissions import require_accessibility
@@ -87,8 +88,11 @@ async def _run(config: ServerConfig) -> None:
     mouse = MouseController()
     keyboard = KeyboardController()
 
+    # System actions (shared between TCP and UDP handlers)
+    system_actions = SystemActions(keyboard)
+
     # Transport servers
-    tcp_server = TCPControlServer(config)
+    tcp_server = TCPControlServer(config, system_actions)
     udp_server = UDPDataServer(config, tcp_server, mouse, keyboard)
 
     await tcp_server.start(loop)

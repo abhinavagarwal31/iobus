@@ -2,8 +2,8 @@ package com.iobus.client.ui.control
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -78,7 +78,7 @@ fun KeyboardPanel(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(HudBlack)
+            .background(HudKeyboardBg)
             .padding(horizontal = 2.dp, vertical = 1.dp)
             // Fun key flash overlay — covers entire keyboard
             .drawWithContent {
@@ -405,13 +405,23 @@ private fun HudKeyCap(
         keyDef.type == KeyType.ACCENT -> HudCyan
         overrideFnToggle && isFnActive -> HudCyan
         keyDef.type == KeyType.MODIFIER && isModifierActive -> HudCyan
-        keyDef.type == KeyType.FUNCTION -> HudTextSecondary
+        keyDef.type == KeyType.FUNCTION -> HudTextFnKey
         else -> HudTextPrimary
     }
 
-    val animBg by animateColorAsState(targetBg, tween(100), label = "bg")
-    val animBorder by animateColorAsState(targetBorder, tween(80), label = "bdr")
-    val animText by animateColorAsState(targetText, tween(80), label = "txt")
+    val animBg by animateColorAsState(targetBg, tween(120), label = "bg")
+    val animBorder by animateColorAsState(targetBorder, tween(140), label = "bdr")
+    val animText by animateColorAsState(targetText, tween(100), label = "txt")
+
+    // Animated glow intensity for press effect (120–160ms per spec)
+    val bloomAlpha by animateFloatAsState(
+        if (isPressed) 0.25f else 0f,
+        tween(140), label = "bloom",
+    )
+    val innerGlowAlpha by animateFloatAsState(
+        if (isPressed) 0.10f else 0f,
+        tween(140), label = "iglow",
+    )
 
     // Display label
     // Default: media icon is primary (matches MacBook behavior)
@@ -456,11 +466,11 @@ private fun HudKeyCap(
             .drawBehind {
                 val cr = cornerRadius.toPx()
 
-                // Layer 1: Outer glow bloom on press
-                if (isPressed) {
+                // Layer 1: Outer glow bloom on press (animated fade)
+                if (bloomAlpha > 0f) {
                     val bloom = 3.dp.toPx()
                     drawRoundRect(
-                        color = HudCyan.copy(alpha = 0.25f),
+                        color = HudCyan.copy(alpha = bloomAlpha),
                         cornerRadius = CornerRadius(cr + bloom),
                         topLeft = Offset(-bloom, -bloom),
                         size = Size(size.width + bloom * 2, size.height + bloom * 2),
@@ -473,12 +483,12 @@ private fun HudKeyCap(
                     cornerRadius = CornerRadius(cr),
                 )
 
-                // Layer 3: Inner radial glow on press
-                if (isPressed) {
+                // Layer 3: Inner radial glow (animated fade)
+                if (innerGlowAlpha > 0f) {
                     drawRoundRect(
                         brush = Brush.radialGradient(
                             colors = listOf(
-                                HudCyan.copy(alpha = 0.15f),
+                                HudCyan.copy(alpha = innerGlowAlpha),
                                 Color.Transparent,
                             ),
                             center = Offset(size.width / 2, size.height / 2),
@@ -538,18 +548,18 @@ private fun HudKeyCap(
         contentAlignment = Alignment.Center,
     ) {
         if (keyDef.type == KeyType.FUNCTION && keyDef.secondaryLabel != null) {
-            // Function key — show Canvas icon centered, tiny F-number in bottom-right corner
+            // Function key — show Lucide icon centered, tiny F-number in bottom-right corner
             Box(modifier = Modifier.fillMaxSize()) {
-                // Canvas icon (centered)
-                val iconDrawFn = FnKeyIcons.iconMap[keyDef.label]
-                if (iconDrawFn != null) {
-                    Canvas(
+                // Lucide icon (centered)
+                val fnIconRes = LucideRes.fnKeyIcons[keyDef.label]
+                if (fnIconRes != null) {
+                    HudIcon(
+                        iconRes = fnIconRes,
+                        tint = animText,
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(2.dp),
-                    ) {
-                        iconDrawFn(this, animText, size)
-                    }
+                    )
                 }
                 // Tiny F-number in bottom-right corner
                 Text(
@@ -648,12 +658,12 @@ private fun FunKeyCap(
             },
         contentAlignment = Alignment.Center,
     ) {
-        Canvas(
+        HudIcon(
+            iconRes = LucideRes.Zap,
+            tint = iconColor,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(3.dp),
-        ) {
-            with(FnKeyIcons) { drawFunKeyIcon(iconColor, size) }
-        }
+        )
     }
 }

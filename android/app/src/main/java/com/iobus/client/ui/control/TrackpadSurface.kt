@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.input.pointer.*
 import androidx.compose.ui.text.font.FontWeight
@@ -42,7 +43,11 @@ fun TrackpadSurface(
         modifier = modifier
             .fillMaxSize()
             .clip(shape)
-            .background(HudTrackpadSurface)
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(HudTrackpadGradientTop, HudTrackpadGradientBot),
+                )
+            )
             .border(0.5.dp, HudTrackpadBorder, shape)
             .drawBehind {
                 // Faint grid lines for HUD depth effect

@@ -46,6 +46,15 @@ class MessageType(IntEnum):
     # Data plane (UDP) — System actions
     SYSTEM_ACTION = 0x40
 
+    # Data plane (UDP) — App launcher
+    LAUNCH_APP = 0x50
+
+    # System state (TCP)
+    GET_SYSTEM_STATE = 0x5F
+    SYSTEM_STATE_RESPONSE = 0x60
+    ACK = 0x61
+    COMMAND_ERROR = 0x62
+
     # Error
     ERROR = 0xFF
 
@@ -83,6 +92,8 @@ class SystemActionId(IntEnum):
     LOCK_SCREEN = 1
     POWER_DIALOG = 2
     SLEEP = 3
+    SHUTDOWN = 4
+    RESTART = 5
 
 
 # ---------------------------------------------------------------------------
@@ -99,6 +110,9 @@ MOUSE_SCROLL_FMT = ">Ihh"     # timestamp(u32), dx(i16), dy(i16)
 MOUSE_DRAG_FMT = ">IBhh"      # timestamp(u32), button(u8), dx(i16), dy(i16)
 KEY_EVENT_FMT = ">IBHB"       # timestamp(u32), action(u8), keycode(u16), modifiers(u8)
 SYSTEM_ACTION_FMT = ">IB"      # timestamp(u32), action_id(u8)
+SYSTEM_STATE_RESPONSE_FMT = ">HHH"  # brightness(u16), volume(u16), flags(u16)
+ACK_FMT = ">B"                # app_id(u8)
+COMMAND_ERROR_FMT = ">B"      # app_id(u8)
 
 HANDSHAKE_REQ_FMT = ">HH"     # client_version(u16), flags(u16)  + 32-byte name
 HANDSHAKE_ACK_FMT = ">HHHH"   # server_version(u16), flags(u16), udp_port(u16), keepalive(u16)
@@ -113,6 +127,9 @@ MOUSE_SCROLL_SIZE = struct.calcsize(MOUSE_SCROLL_FMT)
 MOUSE_DRAG_SIZE = struct.calcsize(MOUSE_DRAG_FMT)
 KEY_EVENT_SIZE = struct.calcsize(KEY_EVENT_FMT)
 SYSTEM_ACTION_SIZE = struct.calcsize(SYSTEM_ACTION_FMT)
+SYSTEM_STATE_RESPONSE_SIZE = struct.calcsize(SYSTEM_STATE_RESPONSE_FMT)
+ACK_SIZE = struct.calcsize(ACK_FMT)
+COMMAND_ERROR_SIZE = struct.calcsize(COMMAND_ERROR_FMT)
 HANDSHAKE_REQ_SIZE = struct.calcsize(HANDSHAKE_REQ_FMT) + HANDSHAKE_REQ_NAME_LEN
 HANDSHAKE_ACK_SIZE = struct.calcsize(HANDSHAKE_ACK_FMT)
 
@@ -305,9 +322,88 @@ class SystemAction:
         return cls(timestamp=ts, action_id=SystemActionId(aid))
 
 
+@dataclass(frozen=True, slots=True)
+class LaunchApp:
+    """Launch application message — variable-length app name."""
+    timestamp: int
+    app_name: str
+
+    def encode(self) -> bytes:
+        name_bytes = self.app_name.encode("utf-8")[:128]
+        payload = struct.pack(">IB", self.timestamp, len(name_bytes)) + name_bytes
+        header = Header(PROTOCOL_VERSION, MessageType.LAUNCH_APP, len(payload))
+        return header.encode() + payload
+
+    @classmethod
+    def decode(cls, payload: bytes) -> Self:
+        ts = struct.unpack(">I", payload[:4])[0]
+        name_len = payload[4]
+        app_name = payload[5:5 + name_len].decode("utf-8", errors="replace")
+        return cls(timestamp=ts, app_name=app_name)
+
+
 # ---------------------------------------------------------------------------
-# Simple messages (no payload)
+# Response messages
 # ---------------------------------------------------------------------------
+
+@dataclass(frozen=True, slots=True)
+class SystemStateResponse:
+    """System state response — brightness, volume, flags."""
+    brightness: float
+    volume: float
+    is_muted: bool = False
+    is_locked: bool = False
+
+    def encode(self) -> bytes:
+        b = int(self.brightness * 100) & 0xFFFF
+        v = int(self.volume * 100) & 0xFFFF
+        flags = (0x01 if self.is_muted else 0) | (0x02 if self.is_locked else 0)
+        payload = struct.pack(SYSTEM_STATE_RESPONSE_FMT, b, v, flags)
+        header = Header(PROTOCOL_VERSION, MessageType.SYSTEM_STATE_RESPONSE, len(payload))
+        return header.encode() + payload
+
+    @classmethod
+    def decode(cls, payload: bytes) -> Self:
+        b, v, flags = struct.unpack(SYSTEM_STATE_RESPONSE_FMT, payload[:SYSTEM_STATE_RESPONSE_SIZE])
+        return cls(
+            brightness=b / 100.0,
+            volume=v / 100.0,
+            is_muted=bool(flags & 0x01),
+            is_locked=bool(flags & 0x02),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class Ack:
+    """Generic acknowledgement with an app_id reference."""
+    app_id: int = 0
+
+    def encode(self) -> bytes:
+        payload = struct.pack(ACK_FMT, self.app_id)
+        header = Header(PROTOCOL_VERSION, MessageType.ACK, len(payload))
+        return header.encode() + payload
+
+    @classmethod
+    def decode(cls, payload: bytes) -> Self:
+        (app_id,) = struct.unpack(ACK_FMT, payload[:ACK_SIZE])
+        return cls(app_id=app_id)
+
+
+@dataclass(frozen=True, slots=True)
+class CommandError:
+    """Error response with an app_id reference."""
+    app_id: int = 0
+
+    def encode(self) -> bytes:
+        payload = struct.pack(COMMAND_ERROR_FMT, self.app_id)
+        header = Header(PROTOCOL_VERSION, MessageType.COMMAND_ERROR, len(payload))
+        return header.encode() + payload
+
+    @classmethod
+    def decode(cls, payload: bytes) -> Self:
+        (app_id,) = struct.unpack(COMMAND_ERROR_FMT, payload[:COMMAND_ERROR_SIZE])
+        return cls(app_id=app_id)
+
 
 def encode_ping() -> bytes:
     """Encode a PING message (header only, no payload)."""
@@ -344,7 +440,7 @@ def decode_error(payload: bytes) -> str:
 DecodedMessage = (
     HandshakeReq | HandshakeAck | HandshakeReject
     | MouseMove | MouseClick | MouseScroll | MouseDrag
-    | KeyEvent | SystemAction | str  # str for ERROR payload
+    | KeyEvent | SystemAction | LaunchApp | str  # str for ERROR payload
 )
 
 # Map message types to their decoder
@@ -361,6 +457,11 @@ _DECODERS: dict[MessageType, type | None] = {
     MessageType.MOUSE_DRAG: MouseDrag,
     MessageType.KEY_EVENT: KeyEvent,
     MessageType.SYSTEM_ACTION: SystemAction,
+    MessageType.LAUNCH_APP: LaunchApp,
+    MessageType.GET_SYSTEM_STATE: None,
+    MessageType.SYSTEM_STATE_RESPONSE: SystemStateResponse,
+    MessageType.ACK: Ack,
+    MessageType.COMMAND_ERROR: CommandError,
     MessageType.ERROR: None,  # handled separately
 }
 

@@ -1,14 +1,22 @@
 # ── Python ──
 .venv/
+venv/
 __pycache__/
 *.py[cod]
 *$py.class
 *.egg-info/
 dist/
+build/
 *.egg
+*.whl
 
 # ── macOS ──
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
 
 # ── IDE / Editor ──
 .idea/
@@ -20,6 +28,7 @@ dist/
 
 # ── Android ──
 android/.gradle/
+android/.kotlin/
 android/build/
 android/app/build/
 android/local.properties
@@ -27,6 +36,11 @@ android/local.properties
 # ── Environment ──
 .env
 .env.local
+.env.*
 
 # ── Logs ──
 *.log
+
+# ── Test artifacts ──
+*.apk
+*.aab

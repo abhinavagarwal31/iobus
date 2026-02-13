@@ -17,6 +17,7 @@ from protocol.messages import (
     HEADER_SIZE,
     Header,
     KeyEvent,
+    LaunchApp,
     MessageType,
     MouseClick,
     MouseDrag,
@@ -105,8 +106,16 @@ class UDPDataProtocol(asyncio.DatagramProtocol):
                         self._system.show_power_dialog()
                     case SystemActionId.SLEEP:
                         self._system.sleep()
+                    case SystemActionId.SHUTDOWN:
+                        self._system.shutdown()
+                    case SystemActionId.RESTART:
+                        self._system.restart()
                     case _:
                         logger.debug("Unknown system action: %d", action.action_id)
+
+            case MessageType.LAUNCH_APP:
+                launch = LaunchApp.decode(payload)
+                self._system.launch_app(launch.app_name)
 
             case _:
                 logger.debug("Ignoring unknown UDP message type: 0x%02X", msg_type)
