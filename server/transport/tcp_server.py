@@ -97,7 +97,8 @@ class TCPControlProtocol(asyncio.Protocol):
                 header = Header.decode(bytes(self._buffer[:HEADER_SIZE]))
             except (ValueError, KeyError):
                 logger.warning("Invalid header from %s — dropping connection", self._peer)
-                self._transport.close()
+                if self._transport:
+                    self._transport.close()
                 return
 
             total = HEADER_SIZE + header.payload_length
@@ -158,7 +159,7 @@ class TCPControlProtocol(asyncio.Protocol):
         # Accept
         self._session = ClientSession(
             name=req.client_name,
-            address=self._peer,
+            address=self._peer or ("?", 0),
             protocol_version=req.client_version,
             session_id=int.from_bytes(os.urandom(4), "big"),
         )
