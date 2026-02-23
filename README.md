@@ -14,7 +14,8 @@ The Android client captures touch and key input, encodes it into binary messages
 - Function key row with media key mappings for F1, F2, F7--F12. F3--F6 system-level media actions are deferred to v2; these keys currently emit standard F3--F6 key events
 - Trackpad with single-finger move, tap-to-click, two-finger scroll, two-finger tap for right-click, and long-press drag
 - Combined split-screen mode (trackpad + keyboard side-by-side in landscape)
-- Control Center for brightness, volume, media playback, screen lock, and power actions
+- Control Center for brightness (with max/min quick-set), volume (with max/min quick-set), and media playback controls
+- Screen lock and power actions on the Home screen (power is passcode-gated)
 - Passcode-gated shutdown and restart (SHA-256 hashed, stored locally on device)
 - Persistent TCP connection with server-driven keepalive (5-second interval, 15-second timeout)
 - Saved server presets for quick manual reconnection

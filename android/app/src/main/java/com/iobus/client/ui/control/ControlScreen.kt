@@ -41,8 +41,8 @@ import kotlinx.coroutines.launch
  * Main control screen — dynamically switches between input modes.
  *
  * Architecture:
- *  - HOME: portrait, navigation-only landing (header, connection, mode selector)
- *  - CONTROLS: portrait, full-screen control center (brightness, volume, media, lock, power)
+ *  - HOME: portrait, navigation-only landing (header, connection, mode selector, lock/power row)
+ *  - CONTROLS: portrait, full-screen control center (brightness+max/min, volume+max/min, media)
  *  - KEYBOARD: landscape, full keyboard
  *  - TRACKPAD: landscape, full trackpad
  *  - COMBINED: landscape, split trackpad (left) + keyboard (right)
@@ -109,6 +109,8 @@ fun ControlScreen(
                         connectionManager = connectionManager,
                         onModeSelected = { inputMode = it },
                         onDisconnect = { scope.launch { connectionManager.disconnect() } },
+                        onLockScreen = { connectionManager.sendSystemAction(SystemActionId.LOCK_SCREEN) },
+                        onPowerDialog = { showPowerDialog = true },
                     )
                 }
 
@@ -126,12 +128,9 @@ fun ControlScreen(
                             },
                             onHome = { inputMode = InputMode.HOME },
                             onDisconnect = { scope.launch { connectionManager.disconnect() } },
-                            onLockScreen = { connectionManager.sendSystemAction(SystemActionId.LOCK_SCREEN) },
-                            onPowerDialog = { showPowerDialog = true },
                         )
                         ControlsPanel(
                             connectionManager = connectionManager,
-                            onPowerDialog = { showPowerDialog = true },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .weight(1f)
@@ -248,6 +247,8 @@ private fun HomeScreen(
     connectionManager: ConnectionManager,
     onModeSelected: (InputMode) -> Unit,
     onDisconnect: () -> Unit,
+    onLockScreen: () -> Unit,
+    onPowerDialog: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -342,6 +343,32 @@ private fun HomeScreen(
             )
         }
 
+        Spacer(Modifier.height(12.dp))
+
+        // ── System: Lock & Power ──
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(HudSurface)
+                .border(0.5.dp, HudSurfaceBorder, RoundedCornerShape(10.dp))
+                .padding(vertical = 10.dp, horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            HomeSystemButton(
+                label = "LOCK",
+                iconRes = LucideRes.Lock,
+                modifier = Modifier.weight(1f),
+                onClick = onLockScreen,
+            )
+            HomeSystemButton(
+                label = "POWER",
+                iconRes = LucideRes.Power,
+                modifier = Modifier.weight(1f),
+                onClick = onPowerDialog,
+            )
+        }
+
         Spacer(Modifier.weight(1f))
 
         // ── Bottom: Disconnect ──
@@ -366,6 +393,54 @@ private fun HomeScreen(
         }
 
         Spacer(Modifier.height(28.dp))
+    }
+}
+
+// ─────────────────────────────────────────────────────────
+// Home system action button — Lock / Power on Home screen
+// ─────────────────────────────────────────────────────────
+
+@Composable
+private fun HomeSystemButton(
+    label: String,
+    @DrawableRes iconRes: Int,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(
+                if (isPressed) HudCyan.copy(alpha = 0.10f) else HudSurfaceElevated.copy(alpha = 0.5f)
+            )
+            .border(
+                0.5.dp,
+                if (isPressed) HudCyanDim.copy(alpha = 0.45f) else HudSurfaceBorder,
+                RoundedCornerShape(10.dp),
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+            ) { onClick() }
+            .padding(vertical = 14.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        HudIcon(
+            iconRes = iconRes,
+            tint = if (isPressed) HudCyan else HudCyanDim,
+            modifier = Modifier.size(22.dp),
+        )
+        Text(
+            text = label,
+            color = HudTextSecondary,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Medium,
+            letterSpacing = 2.sp,
+        )
     }
 }
 
@@ -464,8 +539,6 @@ private fun PortraitStatusBar(
     onModeSelected: (InputMode) -> Unit,
     onHome: () -> Unit,
     onDisconnect: () -> Unit,
-    onLockScreen: () -> Unit,
-    onPowerDialog: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -475,7 +548,7 @@ private fun PortraitStatusBar(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        // Top row: Home | Label | Lock + Power + DC
+        // Top row: Home | Label | DC
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -518,33 +591,23 @@ private fun PortraitStatusBar(
                 )
             }
 
-            // Right: Lock + Power + Disconnect
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            // Right: Disconnect
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(HudRedSoft.copy(alpha = 0.12f))
+                    .border(0.5.dp, HudRedSoft.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
+                    .clickable { onDisconnect() }
+                    .padding(horizontal = 8.dp, vertical = 3.dp),
+                contentAlignment = Alignment.Center,
             ) {
-                HudIconButton(iconRes = LucideRes.Lock, tint = HudTextSecondary) { onLockScreen() }
-                HudIconButton(iconRes = LucideRes.Power, tint = HudCyanDim) { onPowerDialog() }
-
-                Spacer(Modifier.width(2.dp))
-
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(HudRedSoft.copy(alpha = 0.12f))
-                        .border(0.5.dp, HudRedSoft.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
-                        .clickable { onDisconnect() }
-                        .padding(horizontal = 8.dp, vertical = 3.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = "DC",
-                        color = HudRedSoft.copy(alpha = 0.85f),
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp,
-                    )
-                }
+                Text(
+                    text = "DC",
+                    color = HudRedSoft.copy(alpha = 0.85f),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                )
             }
         }
 

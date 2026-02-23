@@ -6,15 +6,19 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -25,9 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.iobus.client.ui.theme.*
 
 /**
@@ -39,16 +41,16 @@ import com.iobus.client.ui.theme.*
  * Internally quantized to [steps] boundaries for firing key events,
  * but the visual always tracks the exact touch position smoothly.
  *
- * @param label Display label below the slider (e.g. "BRIGHTNESS").
- * @param iconRes Lucide VectorDrawable resource ID drawn above the slider.
+ * @param maxIconRes Icon for the top (max) quick-set button (e.g. Sun for brightness, Volume2 for volume).
+ * @param minIconRes Icon for the bottom (min) quick-set button (e.g. SunDim for brightness, VolumeX for volume).
  * @param onIncrement Called when value crosses an upward step boundary.
  * @param onDecrement Called when value crosses a downward step boundary.
  * @param steps Internal quantization for key events (default 16). Visual is unaffected.
  */
 @Composable
 fun GradientSliderControl(
-    label: String,
-    @DrawableRes iconRes: Int,
+    @DrawableRes maxIconRes: Int,
+    @DrawableRes minIconRes: Int,
     onIncrement: () -> Unit,
     onDecrement: () -> Unit,
     modifier: Modifier = Modifier,
@@ -93,12 +95,10 @@ fun GradientSliderControl(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        // Icon — thin-line, optically centered
-        HudIcon(
-            iconRes = iconRes,
-            tint = HudCyanDim,
-            modifier = Modifier.size(20.dp),
-        )
+        // Max button — instantly sets level to 100%
+        SliderEndButton(iconRes = maxIconRes) { updateFraction(1f) }
+
+        Spacer(Modifier.height(2.dp))
 
         // Continuous slider track
         Box(
@@ -228,13 +228,68 @@ fun GradientSliderControl(
             }
         }
 
-        // Label — reduced letter spacing
-        Text(
-            text = label,
-            color = HudTextDisabled,
-            fontSize = 8.sp,
-            fontWeight = FontWeight.Medium,
-            letterSpacing = 1.sp,
+        Spacer(Modifier.height(2.dp))
+
+        // Min button — instantly sets level to 0%
+        SliderEndButton(iconRes = minIconRes) { updateFraction(0f) }
+    }
+}
+
+// ─────────────────────────────────────────────────────────
+// Slider end-cap buttons (Max / Min)
+// ─────────────────────────────────────────────────────────
+
+/**
+ * Circular icon button placed at the top (max) or bottom (min) of a slider.
+ *
+ * 48dp circle, dark glass surface matching media buttons.
+ * Press triggers scale-down to 0.96f (60 ms) + soft cyan border glow
+ * that fades out over 130 ms. No bounce.
+ */
+@Composable
+private fun SliderEndButton(
+    @DrawableRes iconRes: Int,
+    onClick: () -> Unit,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    // Press scale: 0.96f down, springs back — no bounce
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.96f else 1f,
+        animationSpec = tween(durationMillis = if (isPressed) 60 else 100),
+        label = "endButtonScale",
+    )
+
+    // Glow alpha: instant on press, fades out in 130 ms
+    val glowAlpha by animateFloatAsState(
+        targetValue = if (isPressed) 1f else 0f,
+        animationSpec = tween(durationMillis = if (isPressed) 20 else 130),
+        label = "endButtonGlow",
+    )
+
+    Box(
+        modifier = Modifier
+            .size(48.dp)
+            .scale(scale)
+            .clip(CircleShape)
+            .background(HudSurfaceElevated)
+            .border(
+                0.5.dp,
+                if (glowAlpha > 0.01f) HudCyan.copy(alpha = glowAlpha * 0.5f) else HudSurfaceBorder,
+                CircleShape,
+            )
+            .background(HudCyan.copy(alpha = glowAlpha * 0.10f))
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+            ) { onClick() },
+        contentAlignment = Alignment.Center,
+    ) {
+        HudIcon(
+            iconRes = iconRes,
+            tint = if (glowAlpha > 0.1f) HudCyan else HudCyanDim,
+            modifier = Modifier.size(18.dp),
         )
     }
 }
