@@ -210,10 +210,12 @@ class KeyboardController:
 
         event = Quartz.CGEventCreateKeyboardEvent(None, cg_keycode, key_down)
 
-        # Apply modifier flags if any
-        if msg.modifiers:
-            cg_flags = _build_cg_flags(msg.modifiers)
-            Quartz.CGEventSetFlags(event, cg_flags)
+        # Always set modifier flags explicitly — even when zero.
+        # CGEventCreateKeyboardEvent inherits the current system modifier state,
+        # so if we don't zero it out, the previous shift/ctrl/etc. bleeds into
+        # subsequent events and keeps producing capital letters after shift is released.
+        cg_flags = _build_cg_flags(msg.modifiers) if msg.modifiers else 0
+        Quartz.CGEventSetFlags(event, cg_flags)
 
         Quartz.CGEventPost(Quartz.kCGHIDEventTap, event)
 

@@ -537,8 +537,12 @@ private fun HudKeyCap(
                         } else if (isDeferred) {
                             onDeferredKeyPressed()
                         } else {
+                            val shiftWasActive = keyProcessor.isShiftActive
                             keyProcessor.pressKey(effectiveKeyCode)
-                            if (shiftActive) {
+                            // Use keyProcessor.isShiftActive instead of the captured `shiftActive`
+                            // parameter — pointerInput doesn't restart on shiftActive changes so
+                            // `shiftActive` here may be stale (captured at coroutine-start time).
+                            if (shiftWasActive && !keyProcessor.isShiftActive) {
                                 onModifierToggle(KeyProcessor.MOD_SHIFT, false)
                             }
                         }
