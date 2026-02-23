@@ -343,7 +343,7 @@ private fun HomeScreen(
             )
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.weight(1f))
 
         // ── System: Lock & Power ──
         Row(
@@ -369,7 +369,7 @@ private fun HomeScreen(
             )
         }
 
-        Spacer(Modifier.weight(1f))
+        Spacer(Modifier.height(10.dp))
 
         // ── Bottom: Disconnect ──
         Box(

@@ -11,6 +11,7 @@ Responsibilities:
 from __future__ import annotations
 
 import logging
+import time
 
 import Quartz
 
@@ -48,6 +49,11 @@ _CG_BUTTON_NUMBER = {
 }
 
 
+# macOS double-click thresholds (match system defaults)
+_DOUBLE_CLICK_INTERVAL_S = 0.5   # seconds — NSEvent.doubleClickInterval default
+_DOUBLE_CLICK_DISTANCE_PX = 5.0  # pixels — max cursor drift between clicks
+
+
 def _get_cursor_position() -> Quartz.CGPoint:
     """Return the current cursor position as a CGPoint."""
     event = Quartz.CGEventCreate(None)
@@ -62,6 +68,14 @@ def _post_event(event: Quartz.CGEventRef) -> None:
 
 class MouseController:
     """Injects mouse events via CGEvent API."""
+
+    def __init__(self) -> None:
+        # Click-state tracking for double-click synthesis.
+        # kCGMouseEventClickState must be 1 for single, 2 for double, etc.
+        # Without this, synthesized clicks never register as double-clicks.
+        self._click_count: int = 0
+        self._last_click_time: float = 0.0
+        self._last_click_pos: Quartz.CGPoint = Quartz.CGPointMake(0, 0)
 
     def handle_move(self, msg: MouseMove) -> None:
         """Move the cursor by a relative delta."""
@@ -81,11 +95,38 @@ class MouseController:
 
         if msg.action == ClickAction.PRESS:
             event_type = _BUTTON_MAP_DOWN[msg.button]
+
+            # Compute click state for left-button clicks.
+            # macOS requires kCGMouseEventClickState = 2 on the second down event
+            # for apps (Finder, etc.) to recognise it as a double-click.
+            if msg.button == MouseButton.LEFT:
+                now = time.monotonic()
+                dx = pos.x - self._last_click_pos.x
+                dy = pos.y - self._last_click_pos.y
+                dist = (dx * dx + dy * dy) ** 0.5
+                elapsed = now - self._last_click_time
+
+                if elapsed < _DOUBLE_CLICK_INTERVAL_S and dist < _DOUBLE_CLICK_DISTANCE_PX:
+                    self._click_count += 1
+                else:
+                    self._click_count = 1
+
+                self._last_click_time = now
+                self._last_click_pos = pos
+            else:
+                # Non-left buttons: always single
+                self._click_count = 1
+
         else:
             event_type = _BUTTON_MAP_UP[msg.button]
 
+        click_state = self._click_count
+
         event = Quartz.CGEventCreateMouseEvent(
             None, event_type, pos, _CG_BUTTON_NUMBER[msg.button],
+        )
+        Quartz.CGEventSetIntegerValueField(
+            event, Quartz.kCGMouseEventClickState, click_state
         )
         _post_event(event)
 
