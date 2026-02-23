@@ -67,6 +67,7 @@ class TCPControlProtocol(asyncio.Protocol):
         self._buffer = bytearray()
         self._session: ClientSession | None = None
         self._peer: tuple[str, int] | None = None
+        self._state_watcher_task: asyncio.Task | None = None
 
     # ---- asyncio.Protocol callbacks ----
 
@@ -81,6 +82,9 @@ class TCPControlProtocol(asyncio.Protocol):
         self._process_buffer()
 
     def connection_lost(self, exc: Exception | None) -> None:
+        if self._state_watcher_task:
+            self._state_watcher_task.cancel()
+            self._state_watcher_task = None
         if self._session:
             logger.info("Client disconnected: %s", self._session.name)
             self._server.remove_client(self._session)
@@ -177,6 +181,11 @@ class TCPControlProtocol(asyncio.Protocol):
             req.client_name, self._config.udp_port, self._session.session_id,
         )
 
+        # Start state watcher — pushes initial brightness+volume then tracks changes
+        self._state_watcher_task = asyncio.create_task(
+            self._state_watcher(), name=f"state-watcher-{self._session.session_id:08X}"
+        )
+
     def _on_ping(self) -> None:
         self._send(encode_pong())
 
@@ -193,12 +202,57 @@ class TCPControlProtocol(asyncio.Protocol):
             self._transport.close()
 
     def _on_get_system_state(self) -> None:
-        """Respond with current brightness and volume."""
+        """Respond with current brightness, volume, and mute state."""
         brightness = SystemActions.get_brightness()
         volume = SystemActions.get_volume()
-        logger.info("System state request → brightness=%.2f, volume=%.2f", brightness, volume)
-        resp = SystemStateResponse(brightness=brightness, volume=volume)
+        muted = SystemActions.get_mute()
+        logger.info("System state request → brightness=%.2f, volume=%.2f, muted=%s", brightness, volume, muted)
+        resp = SystemStateResponse(brightness=brightness, volume=volume, is_muted=muted)
         self._send(resp.encode())
+
+    # ---- State watcher ----
+
+    async def _state_watcher(self) -> None:
+        """Push SYSTEM_STATE_RESPONSE on connect and whenever brightness or volume changes.
+
+        Runs only while a client is connected.
+        Subprocess calls are offloaded to a thread executor so the event loop
+        is never blocked.
+        """
+        loop = asyncio.get_running_loop()
+
+        try:
+            # Read initial state (in executor — subprocess calls can take ~100 ms)
+            last_b = await loop.run_in_executor(None, SystemActions.get_brightness)
+            last_v = await loop.run_in_executor(None, SystemActions.get_volume)
+            last_m = await loop.run_in_executor(None, SystemActions.get_mute)
+        except Exception:
+            last_b, last_v, last_m = 0.5, 0.5, False
+
+        # Push initial state so the app syncs slider positions immediately
+        self._send(SystemStateResponse(brightness=last_b, volume=last_v, is_muted=last_m).encode())
+        logger.debug("State watcher: initial push brightness=%.2f volume=%.2f muted=%s", last_b, last_v, last_m)
+
+        try:
+            while self._session is not None:
+                await asyncio.sleep(0.5)
+                if self._session is None:
+                    break
+                try:
+                    b = await loop.run_in_executor(None, SystemActions.get_brightness)
+                    v = await loop.run_in_executor(None, SystemActions.get_volume)
+                    m = await loop.run_in_executor(None, SystemActions.get_mute)
+                except Exception:
+                    continue
+
+                if abs(b - last_b) > 0.005 or abs(v - last_v) > 0.005 or m != last_m:
+                    last_b, last_v, last_m = b, v, m
+                    self._send(SystemStateResponse(brightness=b, volume=v, is_muted=m).encode())
+                    logger.debug(
+                        "State watcher: push change brightness=%.2f volume=%.2f muted=%s", b, v, m
+                    )
+        except asyncio.CancelledError:
+            pass  # Normal on disconnect
 
     def _on_launch_app(self, payload: bytes) -> None:
         """Launch app by name, respond with ACK or ERROR."""

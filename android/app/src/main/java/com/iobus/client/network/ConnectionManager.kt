@@ -2,6 +2,7 @@ package com.iobus.client.network
 
 import com.iobus.client.protocol.Constants
 import com.iobus.client.protocol.Messages
+import com.iobus.client.protocol.SystemStateData
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,6 +24,14 @@ class ConnectionManager {
 
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
+
+    /**
+     * Latest system state pushed by the server (brightness + volume).
+     * Null until the first push is received after connection.
+     * Cleared on disconnect.
+     */
+    private val _systemState = MutableStateFlow<SystemStateData?>(null)
+    val systemState: StateFlow<SystemStateData?> = _systemState
 
     /** Server host currently connected to (or last attempted). */
     var host: String = ""
@@ -56,6 +65,7 @@ class ConnectionManager {
                 _errorMessage.value = msg
                 scope?.launch { disconnectInternal() }
             },
+            onSystemState = { data -> _systemState.value = data },
         )
         tcpClient = tcp
 
@@ -140,5 +150,6 @@ class ConnectionManager {
         udpClient = null
         scope = null
         _state.value = ConnectionState.DISCONNECTED
+        _systemState.value = null
     }
 }

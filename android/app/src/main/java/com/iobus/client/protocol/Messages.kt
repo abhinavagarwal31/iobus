@@ -35,6 +35,7 @@ object MessageType {
     const val LAUNCH_APP: Byte = 0x50
 
     // Response / ack (TCP)
+    const val GET_SYSTEM_STATE: Byte = 0x5F
     const val SYSTEM_STATE_RESPONSE: Byte = 0x60
     const val ACK: Byte = 0x61
     const val COMMAND_ERROR: Byte = 0x62
@@ -240,6 +241,9 @@ object Messages {
     }
 
     // ---- System state (TCP) ----
+
+    /** Request current system state from the server (header-only, no payload). */
+    fun encodeGetSystemState(): ByteArray = encodeHeader(MessageType.GET_SYSTEM_STATE, 0)
 
     fun decodeSystemState(payload: ByteArray): SystemStateData {
         val buf = ByteBuffer.wrap(payload)

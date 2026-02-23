@@ -46,6 +46,10 @@ import com.iobus.client.ui.theme.*
  * @param onIncrement Called when value crosses an upward step boundary.
  * @param onDecrement Called when value crosses a downward step boundary.
  * @param steps Internal quantization for key events (default 16). Visual is unaffected.
+ * @param systemFraction When non-null, the slider animates to this value while the user is not dragging.
+ *   Used for brightness/volume sync pushed from the server.
+ * @param minIconActive When true, the min button renders in an active/highlighted state.
+ *   Used to indicate mute is engaged on the volume slider.
  */
 @Composable
 fun GradientSliderControl(
@@ -55,13 +59,24 @@ fun GradientSliderControl(
     onDecrement: () -> Unit,
     modifier: Modifier = Modifier,
     steps: Int = 16,
+    systemFraction: Float? = null,
+    minIconActive: Boolean = false,
 ) {
-    // Raw fraction 0f..1f — continuous position
-    var rawFraction by remember { mutableFloatStateOf(0.5f) }
+    // Raw fraction 0f..1f — starts at 0 until server sync arrives
+    var rawFraction by remember { mutableFloatStateOf(0f) }
     // Quantized step for firing discrete key events
-    var quantizedStep by remember { mutableIntStateOf(steps / 2) }
+    var quantizedStep by remember { mutableIntStateOf(0) }
     // True while finger is on the slider
     var isAdjusting by remember { mutableStateOf(false) }
+
+    // Apply server-pushed value when the user is not actively adjusting
+    LaunchedEffect(systemFraction) {
+        if (systemFraction != null && !isAdjusting) {
+            val clamped = systemFraction.coerceIn(0f, 1f)
+            rawFraction = clamped
+            quantizedStep = (clamped * steps).toInt().coerceIn(0, steps)
+        }
+    }
 
     // Smooth animated fraction (fast during drag, micro ease on release)
     val animatedFraction by animateFloatAsState(
@@ -230,8 +245,8 @@ fun GradientSliderControl(
 
         Spacer(Modifier.height(2.dp))
 
-        // Min button — instantly sets level to 0%
-        SliderEndButton(iconRes = minIconRes) { updateFraction(0f) }
+        // Min button — instantly sets level to 0% (glows when muted)
+        SliderEndButton(iconRes = minIconRes, isActive = minIconActive) { updateFraction(0f) }
     }
 }
 
@@ -249,6 +264,7 @@ fun GradientSliderControl(
 @Composable
 private fun SliderEndButton(
     @DrawableRes iconRes: Int,
+    isActive: Boolean = false,
     onClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -261,9 +277,9 @@ private fun SliderEndButton(
         label = "endButtonScale",
     )
 
-    // Glow alpha: instant on press, fades out in 130 ms
+    // Glow alpha: instant on press, fades out in 130 ms. Also on when isActive.
     val glowAlpha by animateFloatAsState(
-        targetValue = if (isPressed) 1f else 0f,
+        targetValue = if (isPressed || isActive) 1f else 0f,
         animationSpec = tween(durationMillis = if (isPressed) 20 else 130),
         label = "endButtonGlow",
     )

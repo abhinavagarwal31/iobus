@@ -166,7 +166,7 @@ class TcpClient(
                     }
                     // SYSTEM_STATE_RESPONSE
                     MessageType.SYSTEM_STATE_RESPONSE.toInt() and 0xFF -> {
-                        if (payload.size >= 8) {
+                        if (payload.size >= 6) {  // brightness(u16) + volume(u16) + flags(u16)
                             val state = Messages.decodeSystemState(payload)
                             onSystemState(state)
                         }

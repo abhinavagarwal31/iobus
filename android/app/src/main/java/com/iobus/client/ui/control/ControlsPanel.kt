@@ -31,6 +31,14 @@ fun ControlsPanel(
     connectionManager: ConnectionManager,
     modifier: Modifier = Modifier,
 ) {
+    // Observe system state pushed by the server
+    val systemState by connectionManager.systemState.collectAsState()
+    // Convert to 0f–1f fractions (server stores as 0–100 integers)
+    val brightnessSync = systemState?.let { it.brightness / 100f }
+    // When muted the slider drops to 0; when unmuted it restores to real volume.
+    // This also causes LaunchedEffect(systemFraction) to re-fire on mute toggle.
+    val volumeSync = systemState?.let { if (it.isMuted) 0f else it.volume / 100f }
+    val muteSync = systemState?.isMuted ?: false
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -57,6 +65,7 @@ fun ControlsPanel(
                     connectionManager.sendKeyEvent(KeyCodes.KEY_BRIGHTNESS_DOWN, ACTION_DOWN)
                     connectionManager.sendKeyEvent(KeyCodes.KEY_BRIGHTNESS_DOWN, ACTION_UP)
                 },
+                systemFraction = brightnessSync,
                 modifier = Modifier.weight(1f),
             )
 
@@ -71,6 +80,8 @@ fun ControlsPanel(
                     connectionManager.sendKeyEvent(KeyCodes.KEY_VOLUME_DOWN, ACTION_DOWN)
                     connectionManager.sendKeyEvent(KeyCodes.KEY_VOLUME_DOWN, ACTION_UP)
                 },
+                systemFraction = volumeSync,
+                minIconActive = muteSync,
                 modifier = Modifier.weight(1f),
             )
         }

@@ -30,29 +30,54 @@ class SystemActions:
     def get_brightness() -> float:
         """Get the current display brightness (0.0–1.0).
 
-        Uses AppleScript to query the system brightness.
-        Returns 0.5 as a fallback if the query fails.
+        Strategy 1: DisplayServices private framework (ctypes) — works on Apple Silicon.
+        Strategy 2: Quartz CoreGraphics (pyobjc) — works on Intel Macs.
+        Strategy 3: ioreg — legacy fallback for older Apple displays.
+        Falls back to 0.5 if all fail.
         """
+        import ctypes
+
+        # Strategy 1: DisplayServices (no extra deps, works on Apple Silicon M-series)
         try:
-            result = subprocess.run(
-                [
-                    "osascript", "-e",
-                    'tell application "System Events" to get the value of slider 1 '
-                    'of group 1 of group 2 of toolbar 1 of window 1 of '
-                    'application process "System Preferences"',
-                ],
-                capture_output=True, text=True, timeout=3,
+            ds = ctypes.cdll.LoadLibrary(
+                '/System/Library/PrivateFrameworks/DisplayServices.framework/DisplayServices'
             )
-            if result.returncode == 0 and result.stdout.strip():
-                return float(result.stdout.strip())
-        except (subprocess.SubprocessError, ValueError, FileNotFoundError):
-            pass
-        # Fallback: try using CoreGraphics
-        try:
-            from CoreGraphics import CGDisplayGetBrightness  # type: ignore[import]
-            return CGDisplayGetBrightness(0)
+            ds.DisplayServicesGetBrightness.restype = ctypes.c_int
+            ds.DisplayServicesGetBrightness.argtypes = [ctypes.c_uint32, ctypes.POINTER(ctypes.c_float)]
+            val = ctypes.c_float()
+            # Display ID 1 = built-in retina display on Apple Silicon
+            ret = ds.DisplayServicesGetBrightness(1, ctypes.byref(val))
+            if ret == 0 and 0.0 <= val.value <= 1.0:
+                return float(val.value)
         except Exception:
             pass
+
+        # Strategy 2: Quartz (pyobjc-framework-Quartz, works on Intel Macs)
+        try:
+            import Quartz  # type: ignore[import]
+            display_id = Quartz.CGMainDisplayID()
+            brightness = Quartz.CGDisplayGetBrightness(display_id)
+            if 0.0 <= brightness <= 1.0:
+                return float(brightness)
+        except Exception:
+            pass
+
+        # Strategy 3: ioreg — legacy fallback for older Apple displays
+        try:
+            import re
+            for cls in ("AppleBacklightDisplay", "AppleM1BacklightDisplay",
+                        "AppleM2BacklightDisplay", "AppleM3BacklightDisplay"):
+                result = subprocess.run(
+                    ["ioreg", "-c", cls, "-r", "-d", "2"],
+                    capture_output=True, text=True, timeout=3,
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    m = re.search(r'"brightness"\s*=\s*([\d.]+)', result.stdout)
+                    if m:
+                        return max(0.0, min(1.0, float(m.group(1))))
+        except Exception:
+            pass
+
         return 0.5  # safe default
 
     @staticmethod
@@ -73,6 +98,20 @@ class SystemActions:
         except (subprocess.SubprocessError, ValueError, FileNotFoundError):
             pass
         return 0.5  # safe default
+
+    @staticmethod
+    def get_mute() -> bool:
+        """Return True if the system output is muted."""
+        try:
+            result = subprocess.run(
+                ["osascript", "-e", "output muted of (get volume settings)"],
+                capture_output=True, text=True, timeout=3,
+            )
+            if result.returncode == 0:
+                return result.stdout.strip().lower() == "true"
+        except (subprocess.SubprocessError, FileNotFoundError):
+            pass
+        return False
 
     def lock_screen(self) -> None:
         """Lock the screen via Ctrl + Cmd + Q."""
