@@ -14,7 +14,8 @@ The Android client captures touch and key input, encodes it into binary messages
 - Function key row with media key mappings for F1, F2, F7--F12. F3--F6 system-level media actions are deferred to v2; these keys currently emit standard F3--F6 key events
 - Trackpad with single-finger move, tap-to-click, two-finger scroll, two-finger tap for right-click, and long-press drag
 - Combined split-screen mode (trackpad + keyboard side-by-side in landscape)
-- Control Center for brightness (with max/min quick-set), volume (with max/min quick-set), and media playback controls
+- Control Center for brightness (with max/min quick-set) and volume (with max/min quick-set) and media playback controls
+- Brightness, volume, and mute state synced from Mac to app on connect and pushed automatically whenever the values change on the Mac (no polling — event-driven with a 500 ms watcher)
 - Screen lock and power actions on the Home screen (power is passcode-gated)
 - Passcode-gated shutdown and restart (SHA-256 hashed, stored locally on device)
 - Persistent TCP connection with server-driven keepalive (5-second interval, 15-second timeout)
@@ -33,7 +34,7 @@ Android Client (Kotlin / Jetpack Compose)       macOS Server (Python 3.12 / asyn
 +-------------------------------------------+    +-------------------------------------------+
 ```
 
-**TCP (port 9800)** -- Handshake, keepalive (ping/pong), disconnect, system state queries, app launch commands.
+**TCP (port 9800)** -- Handshake, keepalive (ping/pong), disconnect, system state push (brightness, volume, mute), app launch commands. The server pushes a `SYSTEM_STATE_RESPONSE` immediately on handshake and again whenever brightness, volume, or mute changes, so slider positions are always in sync.
 
 **UDP (port 9801)** -- Mouse move/click/scroll/drag, key events, system actions, app launch commands.
 
