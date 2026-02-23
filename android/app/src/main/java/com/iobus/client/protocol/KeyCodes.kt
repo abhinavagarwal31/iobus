@@ -121,4 +121,5 @@ object KeyCodes {
     const val KEY_MEDIA_PLAY_PAUSE = 0x0205
     const val KEY_MEDIA_NEXT = 0x0206
     const val KEY_MEDIA_PREV = 0x0207
+    const val KEY_MISSION_CONTROL = 0x0208  // F3 media layer
 }

@@ -12,6 +12,7 @@ Responsibilities:
 from __future__ import annotations
 
 import logging
+import subprocess
 
 import Quartz
 
@@ -183,6 +184,13 @@ class KeyboardController:
 
     def handle_key_event(self, msg: KeyEvent) -> None:
         """Process a key down or key up event."""
+        # Mission Control (F3 media layer) — open -a is the only reliable trigger.
+        # KEY_F3 (fn+F3) still falls through to inject a standard F3 CGEvent.
+        if msg.keycode == ProtocolKeyCode.KEY_MISSION_CONTROL and msg.action == KeyAction.KEY_DOWN:
+            logger.info("Action: Mission Control")
+            subprocess.Popen(["open", "-a", "Mission Control"])
+            return
+
         # Check if it's a media key first
         media_key = _MEDIA_KEY_MAP.get(msg.keycode)
         if media_key is not None:

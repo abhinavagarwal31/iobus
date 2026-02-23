@@ -165,7 +165,8 @@ object KeyboardLayout {
     val fnMediaMap = mapOf(
         KeyCodes.KEY_F1 to KeyCodes.KEY_BRIGHTNESS_DOWN,
         KeyCodes.KEY_F2 to KeyCodes.KEY_BRIGHTNESS_UP,
-        // F3–F6: deferred to v2 (show HUD toast in v1)
+        KeyCodes.KEY_F3 to KeyCodes.KEY_MISSION_CONTROL,
+        // F4–F6: deferred to v2 (show HUD toast in v1)
         KeyCodes.KEY_F7 to KeyCodes.KEY_MEDIA_PREV,
         KeyCodes.KEY_F8 to KeyCodes.KEY_MEDIA_PLAY_PAUSE,
         KeyCodes.KEY_F9 to KeyCodes.KEY_MEDIA_NEXT,
@@ -179,10 +180,9 @@ object KeyboardLayout {
      * instead of sending any message to the server.
      */
     val deferredKeys: Set<Int> = setOf(
-        KeyCodes.KEY_F3,  // Mission Control
-        KeyCodes.KEY_F4,  // Spotlight
-        KeyCodes.KEY_F5,  // Dictation
-        KeyCodes.KEY_F6,  // Do Not Disturb
-        KeyCodes.KEY_CAPS_LOCK,  // Unreliable via synthetic injection
+        KeyCodes.KEY_F4,  // Spotlight — deferred to v2
+        KeyCodes.KEY_F5,  // Dictation — deferred to v2
+        KeyCodes.KEY_F6,  // Do Not Disturb — deferred to v2
+        KeyCodes.KEY_CAPS_LOCK,  // Unreliable via synthetic injection — deferred to v2
     )
 }

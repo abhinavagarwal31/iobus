@@ -11,7 +11,7 @@ The Android client captures touch and key input, encodes it into binary messages
 ## Features
 
 - Full on-screen keyboard with modifier tracking (Shift, Ctrl, Alt, Cmd)
-- Function key row with media key mappings for F1, F2, F7--F12. F3--F6 system-level media actions are deferred to v2; these keys currently emit standard F3--F6 key events
+- Function key row with media key mappings for F1, F2, F3 (Mission Control), F7--F12. F4--F6 system-level actions are deferred to v2; these keys currently emit standard F4--F6 key events
 - Trackpad with single-finger move, tap-to-click, two-finger scroll, two-finger tap for right-click, and long-press drag
 - Combined split-screen mode (trackpad + keyboard side-by-side in landscape)
 - Control Center for brightness (with max/min quick-set) and volume (with max/min quick-set) and media playback controls
@@ -188,7 +188,7 @@ No runtime permissions need to be granted on Android. The app uses `INTERNET`, `
 - No encryption. All traffic is plaintext over the local network.
 - No automatic reconnection. If the connection drops, the user must reconnect manually (saved presets make this quick).
 - Caps Lock key is displayed but non-functional. Synthetic Caps Lock injection is unreliable on macOS; deferred to v2.
-- F3--F6 media actions (Mission Control, Spotlight, Dictation, Do Not Disturb) are deferred to v2. These keys work as standard F3--F6 when Fn is held.
+- F4--F6 system actions (Spotlight, Dictation, Do Not Disturb) are deferred to v2. These keys currently emit standard F4--F6 key events.
 - Passcode protection for power actions is enforced on the Android client only. The macOS server does not independently validate power commands.
 - Single-client only. The server accepts one connection at a time.
 - No cross-platform server or client support.

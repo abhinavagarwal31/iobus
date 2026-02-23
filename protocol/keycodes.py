@@ -129,6 +129,7 @@ class ProtocolKeyCode(IntEnum):
     KEY_MEDIA_PLAY_PAUSE = 0x0205
     KEY_MEDIA_NEXT = 0x0206
     KEY_MEDIA_PREV = 0x0207
+    KEY_MISSION_CONTROL = 0x0208  # F3 media layer — open Mission Control
     KEY_PRINT_SCREEN = 0x0210
     KEY_SCROLL_LOCK = 0x0211
     KEY_PAUSE = 0x0212
