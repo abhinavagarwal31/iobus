@@ -15,12 +15,15 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.iobus.client.haptics.HapticManager
 import com.iobus.client.network.ConnectionManager
 import com.iobus.client.network.ConnectionState
 import com.iobus.client.network.SavedServersStore
 import com.iobus.client.security.PasscodeStore
+import com.iobus.client.settings.AppSettingsStore
 import com.iobus.client.ui.connection.ConnectionScreen
 import com.iobus.client.ui.control.ControlScreen
+import com.iobus.client.ui.settings.SettingsScreen
 import com.iobus.client.ui.theme.IOBusTheme
 
 /**
@@ -34,12 +37,18 @@ class IOBusApplication : Application() {
             private set
         lateinit var passcodeStore: PasscodeStore
             private set
+        lateinit var appSettingsStore: AppSettingsStore
+            private set
+        lateinit var hapticManager: HapticManager
+            private set
     }
 
     override fun onCreate() {
         super.onCreate()
         savedServersStore = SavedServersStore(this)
         passcodeStore = PasscodeStore(this)
+        appSettingsStore = AppSettingsStore(this)
+        hapticManager = HapticManager(this, appSettingsStore)
     }
 }
 
@@ -99,7 +108,11 @@ private fun IOBusApp() {
                         popUpTo("control") { inclusive = true }
                     }
                 },
+                onSettings = { navController.navigate("settings") },
             )
+        }
+        composable("settings") {
+            SettingsScreen(onBack = { navController.popBackStack() })
         }
     }
 }

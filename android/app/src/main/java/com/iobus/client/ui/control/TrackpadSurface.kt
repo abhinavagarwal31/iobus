@@ -20,6 +20,7 @@ import androidx.compose.ui.input.pointer.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.iobus.client.IOBusApplication
 import com.iobus.client.input.TouchProcessor
 import com.iobus.client.ui.theme.*
 
@@ -145,10 +146,16 @@ private suspend fun PointerInputScope.detectTrackpadGestures(tp: TouchProcessor)
         if (longPressed) {
             tp.onDragEnd()
         } else if (!moved) {
-            // Tap
+            // Tap — haptic fires before the action so hardware feedback feels synchronous
             when {
-                pointerCount >= 2 -> tp.onSecondaryTap()
-                else -> tp.onTap()
+                pointerCount >= 2 -> {
+                    IOBusApplication.hapticManager.click()
+                    tp.onSecondaryTap()
+                }
+                else -> {
+                    IOBusApplication.hapticManager.click()
+                    tp.onTap()
+                }
             }
         }
     }

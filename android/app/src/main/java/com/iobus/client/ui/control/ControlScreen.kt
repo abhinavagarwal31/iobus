@@ -57,6 +57,7 @@ import kotlinx.coroutines.launch
 fun ControlScreen(
     connectionManager: ConnectionManager,
     onDisconnected: () -> Unit,
+    onSettings: () -> Unit,
 ) {
     val state by connectionManager.state.collectAsState()
     val scope = rememberCoroutineScope()
@@ -111,6 +112,7 @@ fun ControlScreen(
                         onDisconnect = { scope.launch { connectionManager.disconnect() } },
                         onLockScreen = { connectionManager.sendSystemAction(SystemActionId.LOCK_SCREEN) },
                         onPowerDialog = { showPowerDialog = true },
+                        onSettings = onSettings,
                     )
                 }
 
@@ -249,6 +251,7 @@ private fun HomeScreen(
     onDisconnect: () -> Unit,
     onLockScreen: () -> Unit,
     onPowerDialog: () -> Unit,
+    onSettings: () -> Unit,
 ) {
     Column(
         modifier = Modifier
@@ -257,8 +260,31 @@ private fun HomeScreen(
             .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        // ── Top: compact header ──
-        Spacer(Modifier.height(36.dp))
+        // ── Top bar: settings gear (pinned top-right) ──
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 14.dp),
+            horizontalArrangement = Arrangement.End,
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(HudSurfaceElevated.copy(alpha = 0.5f))
+                    .border(0.5.dp, HudSurfaceBorder, RoundedCornerShape(6.dp))
+                    .clickable { onSettings() }
+                    .padding(6.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                HudIcon(
+                    iconRes = LucideRes.Settings,
+                    tint = HudCyanDim,
+                    modifier = Modifier.size(14.dp),
+                )
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
 
         Text(
             text = "IOBUS",

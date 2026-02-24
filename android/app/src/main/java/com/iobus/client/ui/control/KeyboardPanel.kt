@@ -21,11 +21,10 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import com.iobus.client.IOBusApplication
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -380,7 +379,6 @@ private fun HudKeyCap(
     overrideFnToggle: Boolean = false,
     isFnActive: Boolean = false,
 ) {
-    val haptic = LocalHapticFeedback.current
     var isPressed by remember { mutableStateOf(false) }
 
     // ── Target colors ──
@@ -524,7 +522,7 @@ private fun HudKeyCap(
                 detectTapGestures(
                     onPress = {
                         isPressed = true
-                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        IOBusApplication.hapticManager.keyTap()
                         tryAwaitRelease()
                         isPressed = false
                     },
@@ -600,7 +598,6 @@ private fun FunKeyCap(
     onPressed: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val haptic = LocalHapticFeedback.current
     var isPressed by remember { mutableStateOf(false) }
     val iconColor by animateColorAsState(
         if (isPressed) Color.White else HudCyan,
@@ -653,7 +650,7 @@ private fun FunKeyCap(
                 detectTapGestures(
                     onPress = {
                         isPressed = true
-                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        IOBusApplication.hapticManager.keyTap()
                         tryAwaitRelease()
                         isPressed = false
                     },
