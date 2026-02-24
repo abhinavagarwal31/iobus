@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.iobus.client.input.KeyProcessor
 import com.iobus.client.ui.theme.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -351,6 +352,13 @@ private fun SpaceBarRow(
 }
 
 // ─────────────────────────────────────────────────────────
+// Key-repeat timing constants (mirror macOS defaults)
+// ─────────────────────────────────────────────────────────
+
+private const val KEY_REPEAT_INITIAL_DELAY_MS = 400L  // delay before first repeat
+private const val KEY_REPEAT_INTERVAL_MS      = 50L   // interval between repeats (~20 cps)
+
+// ─────────────────────────────────────────────────────────
 // HUD Key Cap — Iron Man neon glow style
 // ─────────────────────────────────────────────────────────
 
@@ -455,6 +463,27 @@ private fun HudKeyCap(
         else -> 9.sp
     }
 
+    // ── Key repeat ───────────────────────────────────────────────────────────
+    // Fires keyDown immediately on press, repeats while held, and sends keyUp
+    // via `finally` when the coroutine is cancelled (i.e. isPressed goes false).
+    // Modifier, deferred, and fn-toggle keys are excluded — they have their own
+    // activate/deactivate logic inside the pointerInput block below.
+    LaunchedEffect(isPressed) {
+        val keyCode = effectiveKeyCode
+        if (!isPressed || keyDef.modifierFlag != 0 || isDeferred || overrideFnToggle) return@LaunchedEffect
+        try {
+            keyProcessor.keyDown(keyCode)
+            delay(KEY_REPEAT_INITIAL_DELAY_MS)
+            while (true) {
+                keyProcessor.keyDown(keyCode)
+                delay(KEY_REPEAT_INTERVAL_MS)
+            }
+        } finally {
+            // Runs both on normal cancellation (finger up) and on recomposition.
+            keyProcessor.keyUp(keyCode)
+        }
+    }
+
     val cornerRadius = 4.dp
     val shape = RoundedCornerShape(cornerRadius)
 
@@ -523,26 +552,28 @@ private fun HudKeyCap(
                     onPress = {
                         isPressed = true
                         IOBusApplication.hapticManager.keyTap()
-                        tryAwaitRelease()
-                        isPressed = false
+                        if (keyDef.modifierFlag != 0 && !overrideFnToggle) {
+                            // ── Hold-to-activate modifier (⇧ ⌃ ⌥ ⌘) ──────────────────────
+                            // Activate on finger-down, deactivate on finger-up — exactly
+                            // like a physical keyboard. Sends keyDown/keyUp so the server
+                            // can detect rapid double-presses (e.g. ⌘⌘ to trigger Siri).
+                            keyProcessor.holdModifier(keyDef.modifierFlag, keyDef.keyCode)
+                            onModifierToggle(keyDef.modifierFlag, true)
+                            tryAwaitRelease()
+                            isPressed = false
+                            keyProcessor.releaseModifier(keyDef.modifierFlag, keyDef.keyCode)
+                            onModifierToggle(keyDef.modifierFlag, false)
+                        } else {
+                            tryAwaitRelease()
+                            isPressed = false
+                        }
                     },
                     onTap = {
-                        if (overrideFnToggle) {
-                            onModifierToggle(0, false)
-                        } else if (keyDef.modifierFlag != 0) {
-                            val newState = keyProcessor.toggleModifier(keyDef.modifierFlag)
-                            onModifierToggle(keyDef.modifierFlag, newState)
-                        } else if (isDeferred) {
-                            onDeferredKeyPressed()
-                        } else {
-                            val shiftWasActive = keyProcessor.isShiftActive
-                            keyProcessor.pressKey(effectiveKeyCode)
-                            // Use keyProcessor.isShiftActive instead of the captured `shiftActive`
-                            // parameter — pointerInput doesn't restart on shiftActive changes so
-                            // `shiftActive` here may be stale (captured at coroutine-start time).
-                            if (shiftWasActive && !keyProcessor.isShiftActive) {
-                                onModifierToggle(KeyProcessor.MOD_SHIFT, false)
-                            }
+                        when {
+                            overrideFnToggle         -> onModifierToggle(0, false)  // fn layer toggle
+                            keyDef.modifierFlag != 0 -> { /* handled via hold/release in onPress */ }
+                            isDeferred               -> onDeferredKeyPressed()
+                            else                     -> { /* key events driven by LaunchedEffect above */ }
                         }
                     },
                 )

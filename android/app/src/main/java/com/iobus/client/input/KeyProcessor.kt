@@ -32,12 +32,32 @@ class KeyProcessor(
     val isCmdActive: Boolean get() = (modifiers and MOD_CMD) != 0
 
     /**
-     * Toggle a modifier key (sticky behaviour like on-screen keyboards).
+     * Toggle a modifier (legacy sticky mode). Kept for any callers that still need it.
      * Returns the new active state.
      */
     fun toggleModifier(modFlag: Int): Boolean {
         modifiers = modifiers xor modFlag
         return (modifiers and modFlag) != 0
+    }
+
+    /**
+     * Activate a modifier when the key is pressed down (hold-to-activate).
+     * Sets the flag and sends a keyDown event so the server can detect
+     * rapid double-taps (e.g. ⌘⌘ → Siri).
+     */
+    fun holdModifier(modFlag: Int, keyCode: Int) {
+        modifiers = modifiers or modFlag
+        connection.sendKeyEvent(keyCode, ACTION_DOWN, modifiers)
+    }
+
+    /**
+     * Deactivate a modifier when the key is released.
+     * Clears the flag BEFORE sending keyUp so the server sees the modifier
+     * already cleared in the event flags — matching real macOS behaviour.
+     */
+    fun releaseModifier(modFlag: Int, keyCode: Int) {
+        modifiers = modifiers and modFlag.inv()
+        connection.sendKeyEvent(keyCode, ACTION_UP, modifiers)
     }
 
     /**
@@ -47,10 +67,6 @@ class KeyProcessor(
     fun pressKey(keyCode: Int) {
         connection.sendKeyEvent(keyCode, ACTION_DOWN, modifiers)
         connection.sendKeyEvent(keyCode, ACTION_UP, modifiers)
-        // Auto-release shift after a non-modifier key (standard keyboard behaviour)
-        if (modifiers and MOD_SHIFT != 0) {
-            modifiers = modifiers and MOD_SHIFT.inv()
-        }
     }
 
     /**
