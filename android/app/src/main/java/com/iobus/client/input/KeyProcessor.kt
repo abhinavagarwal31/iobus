@@ -1,7 +1,9 @@
 package com.iobus.client.input
 
 import com.iobus.client.network.ConnectionManager
+import com.iobus.client.protocol.KeyAction
 import com.iobus.client.protocol.KeyCodes
+import com.iobus.client.protocol.ModifierFlag
 import com.iobus.client.protocol.SystemActionId
 
 /**
@@ -17,14 +19,14 @@ class KeyProcessor(
     private var modifiers: Int = 0
 
     companion object {
-        const val MOD_SHIFT = 0x01
-        const val MOD_CTRL = 0x02
-        const val MOD_ALT = 0x04
-        const val MOD_CMD = 0x08
+        // Re-export protocol constants for callers that reference KeyProcessor.MOD_*
+        const val MOD_SHIFT = ModifierFlag.SHIFT
+        const val MOD_CTRL = ModifierFlag.CONTROL
+        const val MOD_ALT = ModifierFlag.ALT
+        const val MOD_CMD = ModifierFlag.META
 
-        // Key action constants (match protocol)
-        const val ACTION_DOWN = 0
-        const val ACTION_UP = 1
+        const val ACTION_DOWN = KeyAction.KEY_DOWN
+        const val ACTION_UP = KeyAction.KEY_UP
     }
 
     /** Whether shift is currently held. */
@@ -32,15 +34,6 @@ class KeyProcessor(
     val isCtrlActive: Boolean get() = (modifiers and MOD_CTRL) != 0
     val isAltActive: Boolean get() = (modifiers and MOD_ALT) != 0
     val isCmdActive: Boolean get() = (modifiers and MOD_CMD) != 0
-
-    /**
-     * Toggle a modifier (legacy sticky mode). Kept for any callers that still need it.
-     * Returns the new active state.
-     */
-    fun toggleModifier(modFlag: Int): Boolean {
-        modifiers = modifiers xor modFlag
-        return (modifiers and modFlag) != 0
-    }
 
     /**
      * Activate a modifier when the key is pressed down (hold-to-activate).

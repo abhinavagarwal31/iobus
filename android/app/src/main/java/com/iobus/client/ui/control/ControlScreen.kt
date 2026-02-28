@@ -117,128 +117,80 @@ fun ControlScreen(
                 }
 
                 InputMode.CONTROLS -> {
-                    // Portrait control center — fullscreen with radial menu
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        Column(
+                    // Portrait control center — fullscreen
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .systemBarsPadding(),
+                    ) {
+                        ControlsPanel(
+                            connectionManager = connectionManager,
                             modifier = Modifier
-                                .fillMaxSize()
-                                .systemBarsPadding(),
-                        ) {
-                            ControlsPanel(
-                                connectionManager = connectionManager,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f)
-                                    .padding(vertical = 8.dp),
-                            )
-                        }
-
-                        // Radial menu overlay
-                        RadialMenuButton(
-                            currentMode = inputMode,
-                            onModeSelected = { m ->
-                                inputMode = if (m == inputMode) InputMode.HOME else m
-                            },
-                            onHome = { inputMode = InputMode.HOME },
-                            onLockScreen = { connectionManager.sendSystemAction(SystemActionId.LOCK_SCREEN) },
-                            onPowerDialog = { showPowerDialog = true },
-                            onDisconnect = { scope.launch { connectionManager.disconnect() } },
-                            onSettings = null,
-                            modifier = Modifier.fillMaxSize(),
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .padding(vertical = 8.dp),
                         )
                     }
                 }
 
                 InputMode.KEYBOARD -> {
-                    // Fullscreen keyboard with radial menu overlay
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        KeyboardPanel(
-                            keyProcessor = keyProcessor,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-
-                        // Radial menu overlay
-                        RadialMenuButton(
-                            currentMode = inputMode,
-                            onModeSelected = { m ->
-                                inputMode = if (m == inputMode) InputMode.HOME else m
-                            },
-                            onHome = { inputMode = InputMode.HOME },
-                            onLockScreen = { connectionManager.sendSystemAction(SystemActionId.LOCK_SCREEN) },
-                            onPowerDialog = { showPowerDialog = true },
-                            onDisconnect = { scope.launch { connectionManager.disconnect() } },
-                            onSettings = null,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
+                    // Fullscreen keyboard
+                    KeyboardPanel(
+                        keyProcessor = keyProcessor,
+                        modifier = Modifier.fillMaxSize(),
+                    )
                 }
 
                 InputMode.TRACKPAD -> {
-                    // Fullscreen trackpad with radial menu overlay
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        TrackpadSurface(
-                            touchProcessor = touchProcessor,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(6.dp),
-                        )
-
-                        // Radial menu overlay
-                        RadialMenuButton(
-                            currentMode = inputMode,
-                            onModeSelected = { m ->
-                                inputMode = if (m == inputMode) InputMode.HOME else m
-                            },
-                            onHome = { inputMode = InputMode.HOME },
-                            onLockScreen = { connectionManager.sendSystemAction(SystemActionId.LOCK_SCREEN) },
-                            onPowerDialog = { showPowerDialog = true },
-                            onDisconnect = { scope.launch { connectionManager.disconnect() } },
-                            onSettings = null,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
+                    // Fullscreen trackpad
+                    TrackpadSurface(
+                        touchProcessor = touchProcessor,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(6.dp),
+                    )
                 }
 
                 InputMode.COMBINED -> {
-                    // Fullscreen combined mode with radial menu overlay
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        Row(
+                    // Fullscreen combined mode
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        TrackpadSurface(
+                            touchProcessor = touchProcessor,
                             modifier = Modifier
-                                .fillMaxSize()
-                                .padding(4.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            TrackpadSurface(
-                                touchProcessor = touchProcessor,
-                                modifier = Modifier
-                                    .weight(0.42f)
-                                    .fillMaxHeight(),
-                            )
-                            KeyboardPanel(
-                                keyProcessor = keyProcessor,
-                                compact = true,
-                                modifier = Modifier
-                                    .weight(0.58f)
-                                    .fillMaxHeight(),
-                            )
-                        }
-
-                        // Radial menu overlay
-                        RadialMenuButton(
-                            currentMode = inputMode,
-                            onModeSelected = { m ->
-                                inputMode = if (m == inputMode) InputMode.HOME else m
-                            },
-                            onHome = { inputMode = InputMode.HOME },
-                            onLockScreen = { connectionManager.sendSystemAction(SystemActionId.LOCK_SCREEN) },
-                            onPowerDialog = { showPowerDialog = true },
-                            onDisconnect = { scope.launch { connectionManager.disconnect() } },
-                            onSettings = null,
-                            modifier = Modifier.fillMaxSize(),
+                                .weight(0.42f)
+                                .fillMaxHeight(),
+                        )
+                        KeyboardPanel(
+                            keyProcessor = keyProcessor,
+                            compact = true,
+                            modifier = Modifier
+                                .weight(0.58f)
+                                .fillMaxHeight(),
                         )
                     }
                 }
             }
+        }
+
+        // Floating menu overlay — shown on all non-HOME modes
+        if (inputMode != InputMode.HOME) {
+            FloatingMenuButton(
+                currentMode = inputMode,
+                onModeSelected = { m ->
+                    inputMode = if (m == inputMode) InputMode.HOME else m
+                },
+                onHome = { inputMode = InputMode.HOME },
+                onLockScreen = { connectionManager.sendSystemAction(SystemActionId.LOCK_SCREEN) },
+                onPowerDialog = { showPowerDialog = true },
+                onDisconnect = { scope.launch { connectionManager.disconnect() } },
+                onSettings = null,
+                modifier = Modifier.fillMaxSize(),
+            )
         }
 
         // Power dialog overlay — passcode → options
@@ -578,232 +530,4 @@ private fun ModeSelectorRow(
     }
 }
 
-// ─────────────────────────────────────────────────────────
-// Portrait Status Bar — Control Center mode (standardized)
-// ─────────────────────────────────────────────────────────
 
-@Composable
-private fun PortraitStatusBar(
-    currentMode: InputMode,
-    onModeSelected: (InputMode) -> Unit,
-    onHome: () -> Unit,
-    onDisconnect: () -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(HudTopBarSurface)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        // Top row: Home | Label | DC
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            // Left: Home button
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(HudSurfaceElevated.copy(alpha = 0.5f))
-                    .clickable { onHome() }
-                    .padding(4.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                HudIcon(
-                    iconRes = LucideRes.Home,
-                    tint = HudCyanDim,
-                    modifier = Modifier.size(16.dp),
-                )
-            }
-
-            // Center: Screen label + connection dot
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Text(
-                    text = currentMode.label.uppercase(),
-                    color = HudTextPrimary,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Light,
-                    letterSpacing = 3.sp,
-                )
-                Box(
-                    modifier = Modifier
-                        .size(5.dp)
-                        .clip(CircleShape)
-                        .background(HudGreen),
-                )
-            }
-
-            // Right: Disconnect
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(HudRedSoft.copy(alpha = 0.12f))
-                    .border(0.5.dp, HudRedSoft.copy(alpha = 0.3f), RoundedCornerShape(4.dp))
-                    .clickable { onDisconnect() }
-                    .padding(horizontal = 8.dp, vertical = 3.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "DC",
-                    color = HudRedSoft.copy(alpha = 0.85f),
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp,
-                )
-            }
-        }
-
-        // Bottom row: Mode selector pills
-        ModeSelectorRow(
-            currentMode = currentMode,
-            onModeSelected = onModeSelected,
-        )
-    }
-}
-
-// ─────────────────────────────────────────────────────────
-// HUD Status Bar — landscape modes (standardized)
-// ─────────────────────────────────────────────────────────
-
-@Composable
-private fun HudStatusBar(
-    currentMode: InputMode,
-    onModeSelected: (InputMode) -> Unit,
-    onHome: () -> Unit,
-    onDisconnect: () -> Unit,
-    onLockScreen: () -> Unit,
-    onPowerDialog: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(32.dp)
-            .background(HudTopBarSurface)
-            .padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-        // Left: Home button + label + connection dot + mode pills
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            // Home icon
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .clickable { onHome() }
-                    .padding(horizontal = 4.dp, vertical = 4.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                HudIcon(
-                    iconRes = LucideRes.Home,
-                    tint = HudCyanDim,
-                    modifier = Modifier.size(14.dp),
-                )
-            }
-
-            // Screen label
-            Text(
-                text = currentMode.label.uppercase(),
-                color = HudTextPrimary,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Light,
-                letterSpacing = 2.sp,
-            )
-
-            Box(
-                modifier = Modifier
-                    .size(5.dp)
-                    .clip(CircleShape)
-                    .background(HudGreen),
-            )
-
-            Spacer(Modifier.width(4.dp))
-
-            // Mode switcher pills — Lucide icons
-            val modes = listOf(InputMode.KEYBOARD, InputMode.TRACKPAD, InputMode.COMBINED, InputMode.CONTROLS)
-            for (mode in modes) {
-                val isActive = mode == currentMode
-                val iconColor = if (isActive) HudCyan else HudTextDisabled
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
-                        .background(if (isActive) HudCyan.copy(alpha = 0.12f) else HudModeSurface)
-                        .border(
-                            if (isActive) 1.dp else 0.5.dp,
-                            if (isActive) HudCyanDim else HudModeInactive,
-                            RoundedCornerShape(4.dp),
-                        )
-                        .clickable { onModeSelected(mode) }
-                        .padding(horizontal = 6.dp, vertical = 3.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    HudIcon(
-                        iconRes = LucideRes.modeIcon(mode),
-                        tint = iconColor,
-                        modifier = Modifier.size(12.dp),
-                    )
-                }
-            }
-        }
-
-        // Right: system controls (Lock + Power + DC)
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            HudIconButton(iconRes = LucideRes.Lock, tint = HudTextSecondary) { onLockScreen() }
-            HudIconButton(iconRes = LucideRes.Power, tint = HudCyanDim) { onPowerDialog() }
-
-            Spacer(Modifier.width(4.dp))
-
-            // Disconnect — softer red
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(HudRedSoft.copy(alpha = 0.15f))
-                    .border(0.5.dp, HudRedSoft.copy(alpha = 0.4f), RoundedCornerShape(4.dp))
-                    .clickable { onDisconnect() }
-                    .padding(horizontal = 8.dp, vertical = 3.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = "DC",
-                    color = HudRedSoft,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun HudIconButton(
-    @DrawableRes iconRes: Int,
-    tint: Color,
-    onClick: () -> Unit,
-) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .clickable { onClick() }
-            .padding(horizontal = 6.dp, vertical = 4.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        HudIcon(
-            iconRes = iconRes,
-            tint = tint,
-            modifier = Modifier.size(14.dp),
-        )
-    }
-}

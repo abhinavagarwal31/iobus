@@ -18,7 +18,7 @@ import os
 import time
 from dataclasses import dataclass, field
 
-from protocol.constants import PROTOCOL_VERSION
+from protocol.constants import PROTOCOL_VERSION, REJECT_BUSY, REJECT_VERSION_MISMATCH
 from protocol.messages import (
     HEADER_SIZE,
     Ack,
@@ -38,6 +38,9 @@ from server.config import ServerConfig
 from server.input.actions import SystemActions
 
 logger = logging.getLogger(__name__)
+
+# How often (seconds) to poll macOS for brightness/volume/mute changes.
+STATE_POLL_INTERVAL: float = 0.5
 
 
 @dataclass
@@ -142,7 +145,7 @@ class TCPControlProtocol(asyncio.Protocol):
         # Version check
         if req.client_version != PROTOCOL_VERSION:
             reject = HandshakeReject(
-                server_version=PROTOCOL_VERSION, reason_code=1,
+                server_version=PROTOCOL_VERSION, reason_code=REJECT_VERSION_MISMATCH,
             )
             self._send(reject.encode())
             logger.warning(
@@ -154,7 +157,7 @@ class TCPControlProtocol(asyncio.Protocol):
         # Single-client check
         if self._server.has_client():
             reject = HandshakeReject(
-                server_version=PROTOCOL_VERSION, reason_code=2,
+                server_version=PROTOCOL_VERSION, reason_code=REJECT_BUSY,
             )
             self._send(reject.encode())
             logger.warning("Rejected '%s': server busy (another client connected)", req.client_name)
@@ -235,7 +238,7 @@ class TCPControlProtocol(asyncio.Protocol):
 
         try:
             while self._session is not None:
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(STATE_POLL_INTERVAL)
                 if self._session is None:
                     break
                 try:

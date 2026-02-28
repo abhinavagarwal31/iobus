@@ -47,7 +47,7 @@ class ConnectionManager {
      */
     suspend fun connect(
         host: String,
-        tcpPort: Int = Constants.TCP_PORT,
+        tcpPort: Int = Constants.DEFAULT_TCP_PORT,
     ) {
         // Tear down any existing connection
         disconnectInternal()

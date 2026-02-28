@@ -56,16 +56,16 @@ object ClickAction {
 }
 
 object KeyAction {
-    const val KEY_DOWN: Byte = 0
-    const val KEY_UP: Byte = 1
+    const val KEY_DOWN: Int = 0
+    const val KEY_UP: Int = 1
 }
 
 object ModifierFlag {
-    const val SHIFT: Byte = 0x01
-    const val CONTROL: Byte = 0x02
-    const val ALT: Byte = 0x04
-    const val META: Byte = 0x08
-    const val FN: Byte = 0x10
+    const val SHIFT: Int = 0x01
+    const val CONTROL: Int = 0x02
+    const val ALT: Int = 0x04
+    const val META: Int = 0x08
+    const val FN: Int = 0x10
 }
 
 object SystemActionId {

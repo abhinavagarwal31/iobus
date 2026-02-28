@@ -166,7 +166,8 @@ object KeyboardLayout {
         KeyCodes.KEY_F1 to KeyCodes.KEY_BRIGHTNESS_DOWN,
         KeyCodes.KEY_F2 to KeyCodes.KEY_BRIGHTNESS_UP,
         KeyCodes.KEY_F3 to KeyCodes.KEY_MISSION_CONTROL,
-        // F4–F6: deferred to v2 (show HUD toast in v1)
+        // F4: Spotlight (handled via system action in HudKeyCap, not here)
+        // F5–F6: deferred to v2
         KeyCodes.KEY_F7 to KeyCodes.KEY_MEDIA_PREV,
         KeyCodes.KEY_F8 to KeyCodes.KEY_MEDIA_PLAY_PAUSE,
         KeyCodes.KEY_F9 to KeyCodes.KEY_MEDIA_NEXT,

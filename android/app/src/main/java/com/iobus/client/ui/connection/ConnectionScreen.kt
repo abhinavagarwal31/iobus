@@ -42,7 +42,7 @@ fun ConnectionScreen(
     val savedServers by savedServersStore.servers.collectAsState()
 
     var hostInput by remember { mutableStateOf("") }
-    var portInput by remember { mutableStateOf(Constants.TCP_PORT.toString()) }
+    var portInput by remember { mutableStateOf(Constants.DEFAULT_TCP_PORT.toString()) }
     var saveNameInput by remember { mutableStateOf("") }
     var showSaveDialog by remember { mutableStateOf(false) }
 
@@ -145,7 +145,7 @@ fun ConnectionScreen(
                 Button(
                     onClick = {
                         if (hostInput.isNotBlank()) {
-                            val port = portInput.toIntOrNull() ?: Constants.TCP_PORT
+                            val port = portInput.toIntOrNull() ?: Constants.DEFAULT_TCP_PORT
                             scope.launch {
                                 connectionManager.connect(hostInput.trim(), port)
                             }
@@ -222,7 +222,7 @@ fun ConnectionScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = "${hostInput.trim()}:${portInput.ifBlank { Constants.TCP_PORT.toString() }}",
+                        text = "${hostInput.trim()}:${portInput.ifBlank { Constants.DEFAULT_TCP_PORT.toString() }}",
                         style = MaterialTheme.typography.bodyMedium,
                         color = HudCyan,
                     )
@@ -248,7 +248,7 @@ fun ConnectionScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        val port = portInput.toIntOrNull() ?: Constants.TCP_PORT
+                        val port = portInput.toIntOrNull() ?: Constants.DEFAULT_TCP_PORT
                         savedServersStore.save(saveNameInput.trim(), hostInput.trim(), port)
                         saveNameInput = ""
                         showSaveDialog = false

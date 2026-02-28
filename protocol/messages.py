@@ -16,7 +16,12 @@ from dataclasses import dataclass
 from enum import IntEnum
 from typing import Self
 
-from protocol.constants import CLIENT_NAME_MAX_LENGTH, PROTOCOL_VERSION
+from protocol.constants import (
+    APP_NAME_MAX_LENGTH,
+    CLIENT_NAME_MAX_LENGTH,
+    ERROR_MESSAGE_MAX_LENGTH,
+    PROTOCOL_VERSION,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -134,6 +139,7 @@ ACK_SIZE = struct.calcsize(ACK_FMT)
 COMMAND_ERROR_SIZE = struct.calcsize(COMMAND_ERROR_FMT)
 HANDSHAKE_REQ_SIZE = struct.calcsize(HANDSHAKE_REQ_FMT) + HANDSHAKE_REQ_NAME_LEN
 HANDSHAKE_ACK_SIZE = struct.calcsize(HANDSHAKE_ACK_FMT)
+HANDSHAKE_REJECT_SIZE = struct.calcsize(HANDSHAKE_REJECT_FMT)
 
 
 # ---------------------------------------------------------------------------
@@ -331,7 +337,7 @@ class LaunchApp:
     app_name: str
 
     def encode(self) -> bytes:
-        name_bytes = self.app_name.encode("utf-8")[:128]
+        name_bytes = self.app_name.encode("utf-8")[:APP_NAME_MAX_LENGTH]
         payload = struct.pack(">IB", self.timestamp, len(name_bytes)) + name_bytes
         header = Header(PROTOCOL_VERSION, MessageType.LAUNCH_APP, len(payload))
         return header.encode() + payload
@@ -419,7 +425,7 @@ def encode_pong() -> bytes:
 
 def encode_error(message: str) -> bytes:
     """Encode an ERROR message with a UTF-8 error string."""
-    payload = message.encode("utf-8")[:256]  # Cap error messages at 256 bytes
+    payload = message.encode("utf-8")[:ERROR_MESSAGE_MAX_LENGTH]
     header = Header(PROTOCOL_VERSION, MessageType.ERROR, len(payload))
     return header.encode() + payload
 

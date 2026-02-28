@@ -18,7 +18,7 @@ import java.util.concurrent.Executors
  */
 class UdpClient(
     private val host: String,
-    private val port: Int = Constants.UDP_PORT,
+    private val port: Int = Constants.DEFAULT_UDP_PORT,
 ) {
     private var socket: DatagramSocket? = null
     private var address: InetAddress? = null

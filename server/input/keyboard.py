@@ -164,18 +164,24 @@ def _build_cg_flags(protocol_modifiers: int) -> int:
 class KeyboardController:
     """Injects keyboard events via the macOS CGEvent API."""
 
+    # NSEvent / IOKit HID constants for media key injection
+    _MEDIA_KEY_DOWN_FLAGS = 0x0A00
+    _MEDIA_KEY_UP_FLAGS = 0x0B00
+    _NS_EVENT_TYPE_SYSTEM_DEFINED = 14
+    _NX_SUBTYPE_AUX_CONTROL_BUTTONS = 8
+
     def _post_media_key(self, key_type: int, key_down: bool) -> None:
         """Post a media key event using NSEvent / IOKit HID system key event."""
-        flags = 0x0A00 if key_down else 0x0B00
+        flags = self._MEDIA_KEY_DOWN_FLAGS if key_down else self._MEDIA_KEY_UP_FLAGS
         data1 = (key_type << 16) | flags
         event = Quartz.NSEvent.otherEventWithType_location_modifierFlags_timestamp_windowNumber_context_subtype_data1_data2_(
-            14,  # NSEventTypeSystemDefined
+            self._NS_EVENT_TYPE_SYSTEM_DEFINED,
             (0, 0),
             0,
             0,
             0,
             None,
-            8,  # NX_SUBTYPE_AUX_CONTROL_BUTTONS
+            self._NX_SUBTYPE_AUX_CONTROL_BUTTONS,
             data1,
             -1,
         )
@@ -188,7 +194,10 @@ class KeyboardController:
         # KEY_F3 (fn+F3) still falls through to inject a standard F3 CGEvent.
         if msg.keycode == ProtocolKeyCode.KEY_MISSION_CONTROL and msg.action == KeyAction.KEY_DOWN:
             logger.info("Action: Mission Control")
-            subprocess.Popen(["open", "-a", "Mission Control"])
+            try:
+                subprocess.Popen(["open", "-a", "Mission Control"])
+            except (subprocess.SubprocessError, FileNotFoundError):
+                logger.error("Failed to launch Mission Control")
             return
 
         # Check if it's a media key first

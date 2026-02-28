@@ -71,7 +71,7 @@ IOBus/
 │   └── input/
 │       ├── keyboard.py         CGEvent keyboard injection
 │       ├── mouse.py            CGEvent mouse injection
-│       └── actions.py          System actions (lock, sleep, shutdown, restart)
+│       └── actions.py          System actions (lock, sleep, shutdown, restart, spotlight, siri)
 ├── android/                    Android client (Kotlin, Jetpack Compose)
 │   └── app/src/main/java/com/iobus/client/
 │       ├── protocol/           Constants, KeyCodes, Messages
@@ -213,3 +213,4 @@ IOBus communicates over the local network only. The protocol includes no encrypt
 - Added F4 Spotlight activation via Cmd+Space
 - Redesigned radial menu to vertical scrollable layout
 - Implemented fullscreen layouts for all control modes
+- Codebase refactoring: removed ~310 lines of dead code, unified protocol constants between client and server, replaced magic numbers with named constants, extracted shared helpers, renamed internal components for clarity

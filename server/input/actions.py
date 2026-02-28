@@ -11,7 +11,9 @@ Responsibilities:
 
 from __future__ import annotations
 
+import ctypes
 import logging
+import re
 import subprocess
 
 from protocol.keycodes import ProtocolKeyCode
@@ -19,6 +21,24 @@ from protocol.messages import ModifierFlag
 from server.input.keyboard import KeyboardController
 
 logger = logging.getLogger(__name__)
+
+
+def _run_applescript(script: str, action_name: str, timeout: int = 5) -> bool:
+    """Run an AppleScript command, logging success/failure.
+
+    Returns True on success, False on failure.
+    """
+    try:
+        subprocess.run(
+            ["osascript", "-e", script],
+            check=True,
+            capture_output=True,
+            timeout=timeout,
+        )
+        return True
+    except (subprocess.SubprocessError, FileNotFoundError):
+        logger.error("Failed to %s via AppleScript", action_name)
+        return False
 
 
 class SystemActions:
@@ -36,8 +56,6 @@ class SystemActions:
         Strategy 3: ioreg — legacy fallback for older Apple displays.
         Falls back to 0.5 if all fail.
         """
-        import ctypes
-
         # Strategy 1: DisplayServices (no extra deps, works on Apple Silicon M-series)
         try:
             ds = ctypes.cdll.LoadLibrary(
@@ -65,7 +83,6 @@ class SystemActions:
 
         # Strategy 3: ioreg — legacy fallback for older Apple displays
         try:
-            import re
             for cls in ("AppleBacklightDisplay", "AppleM1BacklightDisplay",
                         "AppleM2BacklightDisplay", "AppleM3BacklightDisplay"):
                 result = subprocess.run(
@@ -130,18 +147,10 @@ class SystemActions:
         fall back to an AppleScript invocation.
         """
         logger.info("Action: show power dialog")
-        try:
-            subprocess.run(
-                [
-                    "osascript", "-e",
-                    'tell application "loginwindow" to «event aevtrsdn»',
-                ],
-                check=True,
-                capture_output=True,
-                timeout=5,
-            )
-        except (subprocess.SubprocessError, FileNotFoundError):
-            logger.error("Failed to show power dialog via AppleScript")
+        _run_applescript(
+            'tell application "loginwindow" to «event aevtrsdn»',
+            "show power dialog",
+        )
 
     def sleep(self) -> None:
         """Put the Mac to sleep via pmset.
@@ -166,18 +175,10 @@ class SystemActions:
         graceful shutdown, prompting the user to save unsaved work.
         """
         logger.info("Action: shutdown")
-        try:
-            subprocess.run(
-                [
-                    "osascript", "-e",
-                    'tell application "System Events" to shut down',
-                ],
-                check=True,
-                capture_output=True,
-                timeout=5,
-            )
-        except (subprocess.SubprocessError, FileNotFoundError):
-            logger.error("Failed to invoke shutdown via AppleScript")
+        _run_applescript(
+            'tell application "System Events" to shut down',
+            "invoke shutdown",
+        )
 
     def restart(self) -> None:
         """Restart the Mac via AppleScript.
@@ -186,18 +187,10 @@ class SystemActions:
         graceful restart, prompting the user to save unsaved work.
         """
         logger.info("Action: restart")
-        try:
-            subprocess.run(
-                [
-                    "osascript", "-e",
-                    'tell application "System Events" to restart',
-                ],
-                check=True,
-                capture_output=True,
-                timeout=5,
-            )
-        except (subprocess.SubprocessError, FileNotFoundError):
-            logger.error("Failed to invoke restart via AppleScript")
+        _run_applescript(
+            'tell application "System Events" to restart',
+            "invoke restart",
+        )
 
     def trigger_siri_voice(self) -> None:
         """Activate Siri in voice mode.
@@ -206,23 +199,9 @@ class SystemActions:
         This is the most reliable cross-version method.
         """
         logger.info("Action: trigger Siri voice mode")
-        try:
-            # Method 1: Direct Siri activation via AppleScript
-            subprocess.run(
-                [
-                    "osascript", "-e",
-                    'tell application "Siri" to activate',
-                ],
-                check=True,
-                capture_output=True,
-                timeout=3,
-            )
-        except (subprocess.SubprocessError, FileNotFoundError) as e:
-            logger.warning("Direct Siri activation failed: %s, trying keyboard shortcut", e)
+        if not _run_applescript('tell application "Siri" to activate', "trigger Siri", timeout=3):
+            # Fallback: open Siri via launch services
             try:
-                # Method 2: Use Fn + Space (modern macOS default)
-                # Fn is typically keycode 0x3F, but CGEvent doesn't support it reliably
-                # So we use the alternate method: open Siri via launch services
                 subprocess.run(
                     ["open", "-a", "Siri"],
                     check=True,

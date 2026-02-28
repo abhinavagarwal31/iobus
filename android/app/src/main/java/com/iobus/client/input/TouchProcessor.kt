@@ -1,6 +1,8 @@
 package com.iobus.client.input
 
 import com.iobus.client.network.ConnectionManager
+import com.iobus.client.protocol.ClickAction
+import com.iobus.client.protocol.MouseButton
 
 /**
  * Processes raw touch gesture data into protocol mouse events.
@@ -35,7 +37,7 @@ class TouchProcessor(
      */
     fun onMove(dx: Float, dy: Float) {
         if (isDragging) {
-            connection.sendMouseDrag(0, dx * sensitivity, dy * sensitivity)  // 0 = LEFT button
+            connection.sendMouseDrag(MouseButton.LEFT.toInt(), dx * sensitivity, dy * sensitivity)
         } else {
             connection.sendMouseMove(dx * sensitivity, dy * sensitivity)
         }
@@ -45,18 +47,16 @@ class TouchProcessor(
      * Single-finger tap.
      */
     fun onTap() {
-        // LEFT = 0, DOWN = 0, UP = 1
-        connection.sendMouseClick(0, 0)
-        connection.sendMouseClick(0, 1)
+        connection.sendMouseClick(MouseButton.LEFT.toInt(), ClickAction.PRESS.toInt())
+        connection.sendMouseClick(MouseButton.LEFT.toInt(), ClickAction.RELEASE.toInt())
     }
 
     /**
      * Two-finger tap → right click.
      */
     fun onSecondaryTap() {
-        // RIGHT = 1, DOWN = 0, UP = 1
-        connection.sendMouseClick(1, 0)
-        connection.sendMouseClick(1, 1)
+        connection.sendMouseClick(MouseButton.RIGHT.toInt(), ClickAction.PRESS.toInt())
+        connection.sendMouseClick(MouseButton.RIGHT.toInt(), ClickAction.RELEASE.toInt())
     }
 
     /**
@@ -74,8 +74,7 @@ class TouchProcessor(
      */
     fun onDragStart() {
         isDragging = true
-        // Press left button down
-        connection.sendMouseClick(0, 0)
+        connection.sendMouseClick(MouseButton.LEFT.toInt(), ClickAction.PRESS.toInt())
     }
 
     /**
@@ -83,8 +82,7 @@ class TouchProcessor(
      */
     fun onDragEnd() {
         if (isDragging) {
-            // Release left button
-            connection.sendMouseClick(0, 1)
+            connection.sendMouseClick(MouseButton.LEFT.toInt(), ClickAction.RELEASE.toInt())
             isDragging = false
         }
     }

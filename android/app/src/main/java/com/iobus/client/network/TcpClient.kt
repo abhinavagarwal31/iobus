@@ -26,7 +26,7 @@ import java.nio.ByteBuffer
  */
 class TcpClient(
     private val host: String,
-    private val port: Int = Constants.TCP_PORT,
+    private val port: Int = Constants.DEFAULT_TCP_PORT,
     private val deviceName: String = "Android",
     private val onStateChange: (ConnectionState) -> Unit = {},
     private val onError: (String) -> Unit = {},
@@ -45,7 +45,7 @@ class TcpClient(
     val state: StateFlow<ConnectionState> = _state
 
     /** Server-assigned UDP port (from handshake ack). */
-    var serverUdpPort: Int = Constants.UDP_PORT
+    var serverUdpPort: Int = Constants.DEFAULT_UDP_PORT
         private set
 
     // ------------------------------------------------

@@ -52,7 +52,7 @@ import kotlinx.coroutines.launch
  * - No overlap with keyboard or other controls
  */
 @Composable
-fun RadialMenuButton(
+fun FloatingMenuButton(
     currentMode: InputMode,
     onModeSelected: (InputMode) -> Unit,
     onHome: () -> Unit,
@@ -178,12 +178,6 @@ private fun FloatingActionButton(
         targetValue = if (isExpanded) 0.95f else 1f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
         label = "button_scale",
-    )
-
-    val rotation by animateFloatAsState(
-        targetValue = if (isExpanded) 45f else 0f,
-        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy),
-        label = "button_rotation",
     )
 
     Box(
