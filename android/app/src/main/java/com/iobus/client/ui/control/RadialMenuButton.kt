@@ -245,20 +245,20 @@ private fun ExpandableMenu(
         add(MenuItem.Mode(InputMode.TRACKPAD, currentMode == InputMode.TRACKPAD))
         add(MenuItem.Mode(InputMode.COMBINED, currentMode == InputMode.COMBINED))
         add(MenuItem.Mode(InputMode.CONTROLS, currentMode == InputMode.CONTROLS))
-        
+
         // Divider
         add(MenuItem.Divider)
-        
+
         // Action items
         add(MenuItem.Action("Home", LucideRes.Home, isDestructive = false) { onHome() })
         add(MenuItem.Action("Lock", LucideRes.Lock, isDestructive = false) { onLockScreen() })
         add(MenuItem.Action("Power", LucideRes.Power, isDestructive = false) { onPowerDialog() })
-        
+
         // Settings (optional)
         onSettings?.let {
             add(MenuItem.Action("Settings", LucideRes.Settings, isDestructive = false, it))
         }
-        
+
         // Divider before destructive action
         add(MenuItem.Divider)
         add(MenuItem.Action("Disconnect", LucideRes.ChevronRight, isDestructive = true) { onDisconnect() })

@@ -73,7 +73,7 @@ class KeyProcessor(
 
     /**
      * Send key-down only (for held keys / repeat).
-     * 
+     *
      * Special case: F4 in media mode (fn not active) triggers Spotlight
      * via system action instead of a regular key event.
      */
@@ -87,7 +87,7 @@ class KeyProcessor(
     fun keyUp(keyCode: Int) {
         connection.sendKeyEvent(keyCode, ACTION_UP, modifiers)
     }
-    
+
     /**
      * Send Spotlight system action (triggered by F4 in media mode).
      */

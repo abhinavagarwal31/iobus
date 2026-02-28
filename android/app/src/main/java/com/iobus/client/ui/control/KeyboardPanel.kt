@@ -454,10 +454,10 @@ private fun HudKeyCap(
     // Check if this is a deferred key (F5-F6 in media mode, caps lock always)
     val isDeferred = keyDef.keyCode in KeyboardLayout.deferredKeys
             && (keyDef.type != KeyType.FUNCTION || !fnActive)
-    
+
     // Special case: F4 in media mode triggers Spotlight via system action
-    val isF4Spotlight = keyDef.keyCode == KeyCodes.KEY_F4 
-            && keyDef.type == KeyType.FUNCTION 
+    val isF4Spotlight = keyDef.keyCode == KeyCodes.KEY_F4
+            && keyDef.type == KeyType.FUNCTION
             && !fnActive
 
     val fontSize = when {

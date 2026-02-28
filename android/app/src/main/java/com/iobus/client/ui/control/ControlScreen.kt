@@ -132,7 +132,7 @@ fun ControlScreen(
                                     .padding(vertical = 8.dp),
                             )
                         }
-                        
+
                         // Radial menu overlay
                         RadialMenuButton(
                             currentMode = inputMode,
@@ -156,7 +156,7 @@ fun ControlScreen(
                             keyProcessor = keyProcessor,
                             modifier = Modifier.fillMaxSize(),
                         )
-                        
+
                         // Radial menu overlay
                         RadialMenuButton(
                             currentMode = inputMode,
@@ -182,7 +182,7 @@ fun ControlScreen(
                                 .fillMaxSize()
                                 .padding(6.dp),
                         )
-                        
+
                         // Radial menu overlay
                         RadialMenuButton(
                             currentMode = inputMode,
@@ -222,7 +222,7 @@ fun ControlScreen(
                                     .fillMaxHeight(),
                             )
                         }
-                        
+
                         // Radial menu overlay
                         RadialMenuButton(
                             currentMode = inputMode,
