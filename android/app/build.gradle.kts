@@ -12,8 +12,8 @@ android {
         applicationId = "com.iobus.client"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "1.5.0"
     }
 
     buildTypes {

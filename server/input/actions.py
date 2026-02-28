@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 import subprocess
 
+from protocol.keycodes import ProtocolKeyCode
 from protocol.messages import ModifierFlag
 from server.input.keyboard import KeyboardController
 
@@ -117,7 +118,7 @@ class SystemActions:
         """Lock the screen via Ctrl + Cmd + Q."""
         logger.info("Action: lock screen (Ctrl+Cmd+Q)")
         self._kb.inject_key_combo(
-            keycode=0x14,  # KEY_Q
+            keycode=ProtocolKeyCode.KEY_Q,
             modifiers=ModifierFlag.CONTROL | ModifierFlag.META,
         )
 
@@ -197,6 +198,51 @@ class SystemActions:
             )
         except (subprocess.SubprocessError, FileNotFoundError):
             logger.error("Failed to invoke restart via AppleScript")
+
+    def trigger_siri_voice(self) -> None:
+        """Activate Siri in voice mode.
+
+        Uses AppleScript to directly activate the Siri application.
+        This is the most reliable cross-version method.
+        """
+        logger.info("Action: trigger Siri voice mode")
+        try:
+            # Method 1: Direct Siri activation via AppleScript
+            subprocess.run(
+                [
+                    "osascript", "-e",
+                    'tell application "Siri" to activate',
+                ],
+                check=True,
+                capture_output=True,
+                timeout=3,
+            )
+        except (subprocess.SubprocessError, FileNotFoundError) as e:
+            logger.warning("Direct Siri activation failed: %s, trying keyboard shortcut", e)
+            try:
+                # Method 2: Use Fn + Space (modern macOS default)
+                # Fn is typically keycode 0x3F, but CGEvent doesn't support it reliably
+                # So we use the alternate method: open Siri via launch services
+                subprocess.run(
+                    ["open", "-a", "Siri"],
+                    check=True,
+                    capture_output=True,
+                    timeout=3,
+                )
+            except (subprocess.SubprocessError, FileNotFoundError):
+                logger.error("Failed to trigger Siri voice mode via all methods")
+
+    def trigger_spotlight(self) -> None:
+        """Activate Spotlight search.
+
+        Uses Cmd+Space keyboard shortcut, which is the standard macOS
+        Spotlight activation method. Fast and reliable via CGEvent.
+        """
+        logger.info("Action: trigger Spotlight (Cmd+Space)")
+        self._kb.inject_key_combo(
+            keycode=ProtocolKeyCode.KEY_SPACE,
+            modifiers=ModifierFlag.META,
+        )
 
     def launch_app(self, app_name: str) -> None:
         """Launch a macOS application by name.

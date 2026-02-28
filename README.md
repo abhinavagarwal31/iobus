@@ -11,12 +11,13 @@ The Android client captures touch and key input, encodes it into binary messages
 ## Features
 
 - Full on-screen keyboard with modifier tracking (Shift, Ctrl, Alt, Cmd)
-- Function key row with media key mappings for F1, F2, F3 (Mission Control), F7--F12. F4--F6 system-level actions are deferred to v2; these keys currently emit standard F4--F6 key events
+- Function key row with media key mappings for F1, F2, F3 (Mission Control), F4 (Spotlight), F7--F12. F5--F6 system-level actions (Dictation, Do Not Disturb) are deferred to v2
 - Trackpad with single-finger move, tap-to-click, two-finger scroll, two-finger tap for right-click, and long-press drag
 - Combined split-screen mode (trackpad + keyboard side-by-side in landscape)
 - Control Center for brightness (with max/min quick-set) and volume (with max/min quick-set) and media playback controls
 - Brightness, volume, and mute state synced from Mac to app on connect and pushed automatically whenever the values change on the Mac (no polling — event-driven with a 500 ms watcher)
 - Screen lock and power actions on the Home screen (power is passcode-gated)
+- Corner floating menu with vertical scrollable mode selection and system actions
 - Passcode-gated shutdown and restart (SHA-256 hashed, stored locally on device)
 - Persistent TCP connection with server-driven keepalive (5-second interval, 15-second timeout)
 - Saved server presets for quick manual reconnection
@@ -183,12 +184,12 @@ No runtime permissions need to be granted on Android. The app uses `INTERNET`, `
 | UDP input not working        | Devices on different subnets or VLANs | Ensure both devices are on the same Wi-Fi network; avoid guest networks with client isolation            |
 | Server exits immediately     | Python version too old                | Run `python3 --version` and confirm 3.12 or later                                                        |
 
-## Limitations (v1)
+## Limitations (v1.5)
 
 - No encryption. All traffic is plaintext over the local network.
 - No automatic reconnection. If the connection drops, the user must reconnect manually (saved presets make this quick).
 - Caps Lock key is displayed but non-functional. Synthetic Caps Lock injection is unreliable on macOS; deferred to v2.
-- F4--F6 system actions (Spotlight, Dictation, Do Not Disturb) are deferred to v2. These keys currently emit standard F4--F6 key events.
+- F5--F6 system actions (Dictation, Do Not Disturb) are deferred to v2. These keys currently emit standard F5--F6 key events.
 - Passcode protection for power actions is enforced on the Android client only. The macOS server does not independently validate power commands.
 - Single-client only. The server accepts one connection at a time.
 - No cross-platform server or client support.
@@ -199,12 +200,16 @@ IOBus communicates over the local network only. The protocol includes no encrypt
 
 ## Roadmap
 
-- Extended macOS system integration (Mission Control, Spotlight, Dictation, Do Not Disturb)
+- Extended macOS system integration (Dictation, Do Not Disturb)
 - Caps Lock state synchronization
 - Automatic reconnection with backoff
 - Enhanced trackpad gestures
 - Cross-platform client support
 
-## Development Status (v1)
+## Development Status (v1.5)
 
-**v1** -- Stable foundation.
+**v1.5** -- Stable foundation with enhanced system integration.
+
+- Added F4 Spotlight activation via Cmd+Space
+- Redesigned radial menu to vertical scrollable layout
+- Implemented fullscreen layouts for all control modes

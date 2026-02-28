@@ -117,82 +117,91 @@ fun ControlScreen(
                 }
 
                 InputMode.CONTROLS -> {
-                    // Portrait control center — full-screen enclosed mode
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .systemBarsPadding(),
-                    ) {
-                        PortraitStatusBar(
+                    // Portrait control center — fullscreen with radial menu
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .systemBarsPadding(),
+                        ) {
+                            ControlsPanel(
+                                connectionManager = connectionManager,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .weight(1f)
+                                    .padding(vertical = 8.dp),
+                            )
+                        }
+                        
+                        // Radial menu overlay
+                        RadialMenuButton(
                             currentMode = inputMode,
                             onModeSelected = { m ->
                                 inputMode = if (m == inputMode) InputMode.HOME else m
                             },
                             onHome = { inputMode = InputMode.HOME },
+                            onLockScreen = { connectionManager.sendSystemAction(SystemActionId.LOCK_SCREEN) },
+                            onPowerDialog = { showPowerDialog = true },
                             onDisconnect = { scope.launch { connectionManager.disconnect() } },
-                        )
-                        ControlsPanel(
-                            connectionManager = connectionManager,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .weight(1f)
-                                .padding(vertical = 8.dp),
+                            onSettings = null,
+                            modifier = Modifier.fillMaxSize(),
                         )
                     }
                 }
 
                 InputMode.KEYBOARD -> {
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        HudStatusBar(
+                    // Fullscreen keyboard with radial menu overlay
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        KeyboardPanel(
+                            keyProcessor = keyProcessor,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                        
+                        // Radial menu overlay
+                        RadialMenuButton(
                             currentMode = inputMode,
                             onModeSelected = { m ->
                                 inputMode = if (m == inputMode) InputMode.HOME else m
                             },
                             onHome = { inputMode = InputMode.HOME },
-                            onDisconnect = { scope.launch { connectionManager.disconnect() } },
                             onLockScreen = { connectionManager.sendSystemAction(SystemActionId.LOCK_SCREEN) },
                             onPowerDialog = { showPowerDialog = true },
-                        )
-                        KeyboardPanel(
-                            keyProcessor = keyProcessor,
+                            onDisconnect = { scope.launch { connectionManager.disconnect() } },
+                            onSettings = null,
                             modifier = Modifier.fillMaxSize(),
                         )
                     }
                 }
 
                 InputMode.TRACKPAD -> {
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        HudStatusBar(
-                            currentMode = inputMode,
-                            onModeSelected = { m ->
-                                inputMode = if (m == inputMode) InputMode.HOME else m
-                            },
-                            onHome = { inputMode = InputMode.HOME },
-                            onDisconnect = { scope.launch { connectionManager.disconnect() } },
-                            onLockScreen = { connectionManager.sendSystemAction(SystemActionId.LOCK_SCREEN) },
-                            onPowerDialog = { showPowerDialog = true },
-                        )
+                    // Fullscreen trackpad with radial menu overlay
+                    Box(modifier = Modifier.fillMaxSize()) {
                         TrackpadSurface(
                             touchProcessor = touchProcessor,
                             modifier = Modifier
                                 .fillMaxSize()
                                 .padding(6.dp),
                         )
-                    }
-                }
-
-                InputMode.COMBINED -> {
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        HudStatusBar(
+                        
+                        // Radial menu overlay
+                        RadialMenuButton(
                             currentMode = inputMode,
                             onModeSelected = { m ->
                                 inputMode = if (m == inputMode) InputMode.HOME else m
                             },
                             onHome = { inputMode = InputMode.HOME },
-                            onDisconnect = { scope.launch { connectionManager.disconnect() } },
                             onLockScreen = { connectionManager.sendSystemAction(SystemActionId.LOCK_SCREEN) },
                             onPowerDialog = { showPowerDialog = true },
+                            onDisconnect = { scope.launch { connectionManager.disconnect() } },
+                            onSettings = null,
+                            modifier = Modifier.fillMaxSize(),
                         )
+                    }
+                }
+
+                InputMode.COMBINED -> {
+                    // Fullscreen combined mode with radial menu overlay
+                    Box(modifier = Modifier.fillMaxSize()) {
                         Row(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -213,6 +222,20 @@ fun ControlScreen(
                                     .fillMaxHeight(),
                             )
                         }
+                        
+                        // Radial menu overlay
+                        RadialMenuButton(
+                            currentMode = inputMode,
+                            onModeSelected = { m ->
+                                inputMode = if (m == inputMode) InputMode.HOME else m
+                            },
+                            onHome = { inputMode = InputMode.HOME },
+                            onLockScreen = { connectionManager.sendSystemAction(SystemActionId.LOCK_SCREEN) },
+                            onPowerDialog = { showPowerDialog = true },
+                            onDisconnect = { scope.launch { connectionManager.disconnect() } },
+                            onSettings = null,
+                            modifier = Modifier.fillMaxSize(),
+                        )
                     }
                 }
             }

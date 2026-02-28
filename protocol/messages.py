@@ -94,6 +94,8 @@ class SystemActionId(IntEnum):
     SLEEP = 3
     SHUTDOWN = 4
     RESTART = 5
+    SIRI_VOICE = 6
+    SPOTLIGHT = 7
 
 
 # ---------------------------------------------------------------------------

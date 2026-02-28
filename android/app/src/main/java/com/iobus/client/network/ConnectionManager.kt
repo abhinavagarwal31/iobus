@@ -83,7 +83,7 @@ class ConnectionManager {
         udpClient = udp
     }
 
-    /**
+    /*
      * Graceful disconnect.
      */
     suspend fun disconnect() {

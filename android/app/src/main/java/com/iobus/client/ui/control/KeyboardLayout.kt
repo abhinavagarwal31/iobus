@@ -180,7 +180,6 @@ object KeyboardLayout {
      * instead of sending any message to the server.
      */
     val deferredKeys: Set<Int> = setOf(
-        KeyCodes.KEY_F4,  // Spotlight — deferred to v2
         KeyCodes.KEY_F5,  // Dictation — deferred to v2
         KeyCodes.KEY_F6,  // Do Not Disturb — deferred to v2
         KeyCodes.KEY_CAPS_LOCK,  // Unreliable via synthetic injection — deferred to v2

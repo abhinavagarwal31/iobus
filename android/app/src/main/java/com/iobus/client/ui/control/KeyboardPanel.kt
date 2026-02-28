@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.iobus.client.input.KeyProcessor
+import com.iobus.client.protocol.KeyCodes
 import com.iobus.client.ui.theme.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -233,8 +234,8 @@ private fun KeyboardRow(
         val totalWeight = keys.sumOf { it.width.toDouble() }.toFloat()
         for (key in keys) {
             if (key.type == KeyType.FUN_KEY) {
-                FunKeyCap(
-                    onPressed = onFunKeyPressed,
+                // Fun key replaced by radial menu overlay - keep spacer for layout
+                Spacer(
                     modifier = Modifier
                         .weight(key.width / totalWeight)
                         .fillMaxHeight(),
@@ -450,9 +451,14 @@ private fun HudKeyCap(
         keyDef.keyCode
     }
 
-    // Check if this is a deferred key (F3–F6 in media mode, caps lock always)
+    // Check if this is a deferred key (F5-F6 in media mode, caps lock always)
     val isDeferred = keyDef.keyCode in KeyboardLayout.deferredKeys
             && (keyDef.type != KeyType.FUNCTION || !fnActive)
+    
+    // Special case: F4 in media mode triggers Spotlight via system action
+    val isF4Spotlight = keyDef.keyCode == KeyCodes.KEY_F4 
+            && keyDef.type == KeyType.FUNCTION 
+            && !fnActive
 
     val fontSize = when {
         keyDef.type == KeyType.FUNCTION && keyDef.secondaryLabel != null && fnActive -> 7.sp // dual label mode (fn shows F-key + dimmed media)
@@ -466,11 +472,11 @@ private fun HudKeyCap(
     // ── Key repeat ───────────────────────────────────────────────────────────
     // Fires keyDown immediately on press, repeats while held, and sends keyUp
     // via `finally` when the coroutine is cancelled (i.e. isPressed goes false).
-    // Modifier, deferred, and fn-toggle keys are excluded — they have their own
+    // Modifier, deferred, F4-Spotlight, and fn-toggle keys are excluded — they have their own
     // activate/deactivate logic inside the pointerInput block below.
     LaunchedEffect(isPressed) {
         val keyCode = effectiveKeyCode
-        if (!isPressed || keyDef.modifierFlag != 0 || isDeferred || overrideFnToggle) return@LaunchedEffect
+        if (!isPressed || keyDef.modifierFlag != 0 || isDeferred || isF4Spotlight || overrideFnToggle) return@LaunchedEffect
         try {
             keyProcessor.keyDown(keyCode)
             delay(KEY_REPEAT_INITIAL_DELAY_MS)
@@ -572,6 +578,7 @@ private fun HudKeyCap(
                         when {
                             overrideFnToggle         -> onModifierToggle(0, false)  // fn layer toggle
                             keyDef.modifierFlag != 0 -> { /* handled via hold/release in onPress */ }
+                            isF4Spotlight            -> keyProcessor.triggerSpotlight()  // F4 → Spotlight
                             isDeferred               -> onDeferredKeyPressed()
                             else                     -> { /* key events driven by LaunchedEffect above */ }
                         }

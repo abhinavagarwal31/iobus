@@ -110,6 +110,10 @@ class UDPDataProtocol(asyncio.DatagramProtocol):
                         self._system.shutdown()
                     case SystemActionId.RESTART:
                         self._system.restart()
+                    case SystemActionId.SIRI_VOICE:
+                        self._system.trigger_siri_voice()
+                    case SystemActionId.SPOTLIGHT:
+                        self._system.trigger_spotlight()
                     case _:
                         logger.debug("Unknown system action: %d", action.action_id)
 

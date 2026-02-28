@@ -1,6 +1,8 @@
 package com.iobus.client.input
 
 import com.iobus.client.network.ConnectionManager
+import com.iobus.client.protocol.KeyCodes
+import com.iobus.client.protocol.SystemActionId
 
 /**
  * Maps keyboard UI key presses to protocol key events.
@@ -71,6 +73,9 @@ class KeyProcessor(
 
     /**
      * Send key-down only (for held keys / repeat).
+     * 
+     * Special case: F4 in media mode (fn not active) triggers Spotlight
+     * via system action instead of a regular key event.
      */
     fun keyDown(keyCode: Int) {
         connection.sendKeyEvent(keyCode, ACTION_DOWN, modifiers)
@@ -81,6 +86,13 @@ class KeyProcessor(
      */
     fun keyUp(keyCode: Int) {
         connection.sendKeyEvent(keyCode, ACTION_UP, modifiers)
+    }
+    
+    /**
+     * Send Spotlight system action (triggered by F4 in media mode).
+     */
+    fun triggerSpotlight() {
+        connection.sendSystemAction(SystemActionId.SPOTLIGHT)
     }
 
     /**

@@ -74,6 +74,8 @@ object SystemActionId {
     const val SLEEP: Byte = 3
     const val SHUTDOWN: Byte = 4
     const val RESTART: Byte = 5
+    const val SIRI_VOICE: Byte = 6
+    const val SPOTLIGHT: Byte = 7
 }
 
 /**
