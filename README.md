@@ -14,7 +14,7 @@ The Android client captures touch and key input, encodes it into binary messages
 - Function key row with media key mappings for F1, F2, F3 (Mission Control), F4 (Spotlight), F7--F12. F5--F6 system-level actions (Dictation, Do Not Disturb) are deferred to v2
 - Trackpad with single-finger move, tap-to-click, two-finger scroll, two-finger tap for right-click, and long-press drag
 - Combined split-screen mode (trackpad + keyboard side-by-side in landscape)
-- Control Center for brightness (with max/min quick-set) and volume (with max/min quick-set) and media playback controls
+- Control Center for brightness (with max/min quick-set) and volume (with max/min quick-set) and media playback controls — adapts to portrait (vertical sliders) and landscape (horizontal sliders)
 - Brightness, volume, and mute state synced from Mac to app on connect and pushed automatically whenever the values change on the Mac (no polling — event-driven with a 500 ms watcher)
 - Screen lock and power actions on the Home screen (power is passcode-gated)
 - Corner floating menu with vertical scrollable mode selection and system actions
@@ -213,4 +213,6 @@ IOBus communicates over the local network only. The protocol includes no encrypt
 - Added F4 Spotlight activation via Cmd+Space
 - Redesigned radial menu to vertical scrollable layout
 - Implemented fullscreen layouts for all control modes
+- Added landscape layout for Control Center with horizontal sliders
+- Fixed orientation lock re-application on device rotation
 - Codebase refactoring: removed ~310 lines of dead code, unified protocol constants between client and server, replaced magic numbers with named constants, extracted shared helpers, renamed internal components for clarity

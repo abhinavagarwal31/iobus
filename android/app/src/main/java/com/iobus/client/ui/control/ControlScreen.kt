@@ -24,6 +24,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -42,7 +43,7 @@ import kotlinx.coroutines.launch
  *
  * Architecture:
  *  - HOME: portrait, navigation-only landing (header, connection, mode selector, lock/power row)
- *  - CONTROLS: portrait, full-screen control center (brightness+max/min, volume+max/min, media)
+ *  - CONTROLS: sensor orientation (adapts to portrait/landscape), full-screen control center
  *  - KEYBOARD: landscape, full keyboard
  *  - TRACKPAD: landscape, full trackpad
  *  - COMBINED: landscape, split trackpad (left) + keyboard (right)
@@ -62,6 +63,7 @@ fun ControlScreen(
     val state by connectionManager.state.collectAsState()
     val scope = rememberCoroutineScope()
     val activity = LocalContext.current as? Activity
+    val configuration = LocalConfiguration.current
 
     var inputMode by remember { mutableStateOf(InputMode.HOME) }
     var showPowerDialog by remember { mutableStateOf(false) }
@@ -74,12 +76,12 @@ fun ControlScreen(
         }
     }
 
-    // Manage orientation based on mode
-    LaunchedEffect(inputMode) {
-        activity?.requestedOrientation = if (inputMode.isLandscape) {
-            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-        } else {
-            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+    // Manage orientation based on mode (re-apply on configuration changes)
+    LaunchedEffect(inputMode, configuration) {
+        activity?.requestedOrientation = when {
+            inputMode == InputMode.CONTROLS -> ActivityInfo.SCREEN_ORIENTATION_SENSOR
+            inputMode.isLandscape -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            else -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         }
     }
 

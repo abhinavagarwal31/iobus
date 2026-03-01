@@ -77,7 +77,7 @@ object KeyboardLayout {
         KeyDef("0", KeyCodes.KEY_0, shiftLabel = ")"),
         KeyDef("-", KeyCodes.KEY_MINUS, shiftLabel = "_"),
         KeyDef("=", KeyCodes.KEY_EQUAL, shiftLabel = "+"),
-        KeyDef("⌫", KeyCodes.KEY_BACKSPACE, width = 1.5f, type = KeyType.SPECIAL),
+        KeyDef("delete", KeyCodes.KEY_BACKSPACE, width = 1.5f, type = KeyType.SPECIAL),
     )
 
     // Row 3: QWERTY top row

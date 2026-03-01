@@ -11,52 +11,52 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import com.iobus.client.network.ConnectionManager
 import com.iobus.client.protocol.KeyCodes
 import com.iobus.client.ui.theme.*
 
 /**
- * Portrait Controls panel — replaces the old Home/mode-picker screen's center content.
+ * Adaptive Controls panel — detects orientation and renders appropriately.
  *
- * Layout (top → bottom):
- *  1. Brightness + Volume gradient stacks side by side (with Max/Min buttons)
+ * Portrait layout (vertical sliders, side-by-side):
+ *  1. Row: Brightness + Volume gradient stacks side by side (with Max/Min buttons)
+ *  2. Media controls row (Previous · Play/Pause · Next)
+ *
+ * Landscape layout (horizontal sliders, stacked vertically):
+ *  1. Column: Brightness + Volume gradient bars stacked (with Min/Max buttons)
  *  2. Media controls row (Previous · Play/Pause · Next)
  *
  * All hardware controls send key events via [connectionManager].
- * Lock and Power actions live on the Home screen.
  */
 @Composable
 fun ControlsPanel(
     connectionManager: ConnectionManager,
     modifier: Modifier = Modifier,
 ) {
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.screenWidthDp > configuration.screenHeightDp
+
     // Observe system state pushed by the server
     val systemState by connectionManager.systemState.collectAsState()
-    // Convert to 0f–1f fractions (server stores as 0–100 integers)
     val brightnessSync = systemState?.let { it.brightness / 100f }
-    // When muted the slider drops to 0; when unmuted it restores to real volume.
-    // This also causes LaunchedEffect(systemFraction) to re-fire on mute toggle.
     val volumeSync = systemState?.let { if (it.isMuted) 0f else it.volume / 100f }
     val muteSync = systemState?.isMuted ?: false
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(20.dp),
-    ) {
-        // ── Gradient stacks: Brightness + Volume ──────
 
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+    if (isLandscape) {
+        // Landscape: horizontal bars stacked vertically with media controls below
+        Column(
+            modifier = modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            GradientSliderControl(
-                maxIconRes = LucideRes.Sun,
+            // Top: brightness slider
+            HorizontalGradientSliderControl(
                 minIconRes = LucideRes.SunDim,
+                maxIconRes = LucideRes.Sun,
                 onIncrement = {
                     connectionManager.sendKeyEvent(KeyCodes.KEY_BRIGHTNESS_UP, ACTION_DOWN)
                     connectionManager.sendKeyEvent(KeyCodes.KEY_BRIGHTNESS_UP, ACTION_UP)
@@ -66,12 +66,15 @@ fun ControlsPanel(
                     connectionManager.sendKeyEvent(KeyCodes.KEY_BRIGHTNESS_DOWN, ACTION_UP)
                 },
                 systemFraction = brightnessSync,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
             )
 
-            GradientSliderControl(
-                maxIconRes = LucideRes.Volume2,
+            // Middle: volume slider
+            HorizontalGradientSliderControl(
                 minIconRes = LucideRes.VolumeX,
+                maxIconRes = LucideRes.Volume2,
                 onIncrement = {
                     connectionManager.sendKeyEvent(KeyCodes.KEY_VOLUME_UP, ACTION_DOWN)
                     connectionManager.sendKeyEvent(KeyCodes.KEY_VOLUME_UP, ACTION_UP)
@@ -82,15 +85,123 @@ fun ControlsPanel(
                 },
                 systemFraction = volumeSync,
                 minIconActive = muteSync,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            )
+
+            // Bottom: media controls
+            MediaControlsRow(
+                connectionManager = connectionManager,
+                vertical = false,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
-
-        // ── Media controls row ────────────────────────
-
-        Row(
-            modifier = Modifier
+    } else {
+        // Portrait: vertical sliders side by side
+        Column(
+            modifier = modifier
                 .fillMaxWidth()
+                .padding(horizontal = 20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
+            // Top: gradient stacks side by side
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                GradientSliderControl(
+                    maxIconRes = LucideRes.Sun,
+                    minIconRes = LucideRes.SunDim,
+                    onIncrement = {
+                        connectionManager.sendKeyEvent(KeyCodes.KEY_BRIGHTNESS_UP, ACTION_DOWN)
+                        connectionManager.sendKeyEvent(KeyCodes.KEY_BRIGHTNESS_UP, ACTION_UP)
+                    },
+                    onDecrement = {
+                        connectionManager.sendKeyEvent(KeyCodes.KEY_BRIGHTNESS_DOWN, ACTION_DOWN)
+                        connectionManager.sendKeyEvent(KeyCodes.KEY_BRIGHTNESS_DOWN, ACTION_UP)
+                    },
+                    systemFraction = brightnessSync,
+                    modifier = Modifier.weight(1f),
+                )
+
+                GradientSliderControl(
+                    maxIconRes = LucideRes.Volume2,
+                    minIconRes = LucideRes.VolumeX,
+                    onIncrement = {
+                        connectionManager.sendKeyEvent(KeyCodes.KEY_VOLUME_UP, ACTION_DOWN)
+                        connectionManager.sendKeyEvent(KeyCodes.KEY_VOLUME_UP, ACTION_UP)
+                    },
+                    onDecrement = {
+                        connectionManager.sendKeyEvent(KeyCodes.KEY_VOLUME_DOWN, ACTION_DOWN)
+                        connectionManager.sendKeyEvent(KeyCodes.KEY_VOLUME_DOWN, ACTION_UP)
+                    },
+                    systemFraction = volumeSync,
+                    minIconActive = muteSync,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+
+            // Bottom: media controls
+            MediaControlsRow(
+                connectionManager = connectionManager,
+                vertical = false,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+// ─────────────────────────────────────────────────────────
+// Sub-components
+// ─────────────────────────────────────────────────────────
+
+/**
+ * Media controls — can render horizontally or vertically.
+ */
+@Composable
+private fun MediaControlsRow(
+    connectionManager: ConnectionManager,
+    vertical: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    if (vertical) {
+        Column(
+            modifier = modifier
+                .clip(RoundedCornerShape(10.dp))
+                .background(HudSurface)
+                .border(0.5.dp, HudSurfaceBorder, RoundedCornerShape(10.dp))
+                .padding(vertical = 8.dp, horizontal = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            MediaButton(
+                iconRes = LucideRes.SkipBack,
+            ) {
+                connectionManager.sendKeyEvent(KeyCodes.KEY_MEDIA_PREV, ACTION_DOWN)
+                connectionManager.sendKeyEvent(KeyCodes.KEY_MEDIA_PREV, ACTION_UP)
+            }
+
+            MediaButton(
+                iconRes = LucideRes.Play,
+                size = 34,
+            ) {
+                connectionManager.sendKeyEvent(KeyCodes.KEY_MEDIA_PLAY_PAUSE, ACTION_DOWN)
+                connectionManager.sendKeyEvent(KeyCodes.KEY_MEDIA_PLAY_PAUSE, ACTION_UP)
+            }
+
+            MediaButton(
+                iconRes = LucideRes.SkipForward,
+            ) {
+                connectionManager.sendKeyEvent(KeyCodes.KEY_MEDIA_NEXT, ACTION_DOWN)
+                connectionManager.sendKeyEvent(KeyCodes.KEY_MEDIA_NEXT, ACTION_UP)
+            }
+        }
+    } else {
+        Row(
+            modifier = modifier
                 .clip(RoundedCornerShape(10.dp))
                 .background(HudSurface)
                 .border(0.5.dp, HudSurfaceBorder, RoundedCornerShape(10.dp))
@@ -120,13 +231,8 @@ fun ControlsPanel(
                 connectionManager.sendKeyEvent(KeyCodes.KEY_MEDIA_NEXT, ACTION_UP)
             }
         }
-
     }
 }
-
-// ─────────────────────────────────────────────────────────
-// Sub-components
-// ─────────────────────────────────────────────────────────
 
 @Composable
 private fun MediaButton(

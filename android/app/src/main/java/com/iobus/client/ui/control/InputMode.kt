@@ -5,7 +5,7 @@ package com.iobus.client.ui.control
  *
  * Controls which input panels are visible and the required orientation:
  * - HOME → portrait, navigation-only landing screen (no content)
- * - CONTROLS → portrait, full-screen control center (brightness, volume, media, lock, power)
+ * - CONTROLS → sensor orientation (adapts to portrait/landscape), full-screen control center
  * - KEYBOARD → landscape, keyboard only
  * - TRACKPAD → landscape, trackpad only
  * - COMBINED → landscape, split keyboard + trackpad

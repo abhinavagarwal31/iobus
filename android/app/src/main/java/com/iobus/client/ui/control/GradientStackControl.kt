@@ -309,3 +309,215 @@ private fun SliderEndButton(
         )
     }
 }
+
+// ─────────────────────────────────────────────────────────
+// Horizontal Gradient Slider (Landscape Mode)
+// ─────────────────────────────────────────────────────────
+
+/**
+ * Continuous horizontal gradient slider control for landscape mode.
+ *
+ * A smooth, fluid energy bar that fills from left to right.
+ * No segmentation, no discrete steps — fully continuous visual.
+ *
+ * Internally quantized to [steps] boundaries for firing key events,
+ * but the visual always tracks the exact touch position smoothly.
+ *
+ * @param minIconRes Icon for the left (min) quick-set button.
+ * @param maxIconRes Icon for the right (max) quick-set button.
+ * @param onIncrement Called when value crosses an upward step boundary.
+ * @param onDecrement Called when value crosses a downward step boundary.
+ * @param steps Internal quantization for key events (default 16). Visual is unaffected.
+ * @param systemFraction When non-null, the slider animates to this value while the user is not dragging.
+ * @param minIconActive When true, the min button renders in an active/highlighted state.
+ */
+@Composable
+fun HorizontalGradientSliderControl(
+    @DrawableRes minIconRes: Int,
+    @DrawableRes maxIconRes: Int,
+    onIncrement: () -> Unit,
+    onDecrement: () -> Unit,
+    modifier: Modifier = Modifier,
+    steps: Int = 16,
+    systemFraction: Float? = null,
+    minIconActive: Boolean = false,
+) {
+    var rawFraction by remember { mutableFloatStateOf(0f) }
+    var quantizedStep by remember { mutableIntStateOf(0) }
+    var isAdjusting by remember { mutableStateOf(false) }
+
+    LaunchedEffect(systemFraction) {
+        if (systemFraction != null && !isAdjusting) {
+            val clamped = systemFraction.coerceIn(0f, 1f)
+            rawFraction = clamped
+            quantizedStep = (clamped * steps).toInt().coerceIn(0, steps)
+        }
+    }
+
+    val animatedFraction by animateFloatAsState(
+        targetValue = rawFraction,
+        animationSpec = tween(durationMillis = if (isAdjusting) 16 else 100),
+        label = "sliderFill",
+    )
+
+    val glowAlpha by animateFloatAsState(
+        targetValue = if (isAdjusting) 1f else 0f,
+        animationSpec = tween(durationMillis = if (isAdjusting) 60 else 280),
+        label = "adjustGlow",
+    )
+
+    fun updateFraction(newFraction: Float) {
+        val clamped = newFraction.coerceIn(0f, 1f)
+        rawFraction = clamped
+        val newStep = (clamped * steps).toInt().coerceIn(0, steps)
+        if (newStep > quantizedStep) {
+            repeat(newStep - quantizedStep) { onIncrement() }
+        } else if (newStep < quantizedStep) {
+            repeat(quantizedStep - newStep) { onDecrement() }
+        }
+        quantizedStep = newStep
+    }
+
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        // Min button — instantly sets level to 0%
+        SliderEndButton(iconRes = minIconRes, isActive = minIconActive) { updateFraction(0f) }
+
+        Spacer(Modifier.width(2.dp))
+
+        // Continuous slider track (horizontal)
+        Box(
+            modifier = Modifier
+                .height(46.dp)
+                .weight(1f)
+                .clip(RoundedCornerShape(14.dp))
+                .background(HudSliderTrack)
+                .border(0.5.dp, HudSliderBorder, RoundedCornerShape(14.dp))
+                .pointerInput(Unit) {
+                    detectTapGestures { offset ->
+                        isAdjusting = true
+                        // Left = 0.0, Right = 1.0
+                        val fraction = offset.x / size.width.toFloat()
+                        updateFraction(fraction)
+                        isAdjusting = false
+                    }
+                }
+                .pointerInput(Unit) {
+                    detectDragGestures(
+                        onDragStart = { offset ->
+                            isAdjusting = true
+                            val fraction = offset.x / size.width.toFloat()
+                            updateFraction(fraction)
+                        },
+                        onDrag = { change, _ ->
+                            change.consume()
+                            val fraction = change.position.x / size.width.toFloat()
+                            updateFraction(fraction)
+                        },
+                        onDragEnd = { isAdjusting = false },
+                        onDragCancel = { isAdjusting = false },
+                    )
+                },
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val w = size.width
+                val h = size.height
+                val cr = 14.dp.toPx()
+                val fillW = w * animatedFraction
+
+                // Track depth: subtle inner shadow at left edge
+                drawRoundRect(
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(
+                            Color.Black.copy(alpha = 0.2f),
+                            Color.Transparent,
+                        ),
+                        startX = 0f,
+                        endX = w * 0.12f,
+                    ),
+                    cornerRadius = CornerRadius(cr),
+                )
+
+                // Active fill
+                if (animatedFraction > 0.002f) {
+                    val clip = Path().apply {
+                        addRoundRect(RoundRect(Rect(0f, 0f, w, h), CornerRadius(cr)))
+                    }
+                    clipPath(clip) {
+                        // Main gradient: electric blue (left) → mid blue → cyan (right)
+                        drawRect(
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(
+                                    HudSliderGradientBot,
+                                    HudSliderGradientMid,
+                                    HudSliderGradientTop,
+                                ),
+                                startX = 0f,
+                                endX = w,
+                            ),
+                            topLeft = Offset(0f, 0f),
+                            size = Size(fillW, h),
+                        )
+
+                        // Inner highlight — subtle top-edge depth
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = 0.045f),
+                                    Color.Transparent,
+                                ),
+                                startY = 0f,
+                                endY = h * 0.4f,
+                            ),
+                            topLeft = Offset(0f, 0f),
+                            size = Size(fillW, h),
+                        )
+
+                        // Fill edge glow — soft luminous line at current level
+                        val edgeGlowW = 4.dp.toPx().coerceAtMost(fillW)
+                        drawRect(
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    HudCyan.copy(alpha = 0.22f),
+                                ),
+                                startX = fillW - edgeGlowW,
+                                endX = fillW,
+                            ),
+                            topLeft = Offset(fillW - edgeGlowW, 0f),
+                            size = Size(edgeGlowW, h),
+                        )
+                    }
+                }
+
+                // Interaction glow pulse
+                if (glowAlpha > 0f) {
+                    val clip = Path().apply {
+                        addRoundRect(RoundRect(Rect(0f, 0f, w, h), CornerRadius(cr)))
+                    }
+                    clipPath(clip) {
+                        // Radial glow centered at fill level edge
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    HudCyan.copy(alpha = glowAlpha * 0.10f),
+                                    Color.Transparent,
+                                ),
+                                center = Offset(fillW, h / 2f),
+                                radius = h * 1.2f,
+                            ),
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(Modifier.width(2.dp))
+
+        // Max button — instantly sets level to 100%
+        SliderEndButton(iconRes = maxIconRes) { updateFraction(1f) }
+    }
+}
