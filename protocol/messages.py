@@ -35,6 +35,10 @@ class MessageType(IntEnum):
     HANDSHAKE_REQ = 0x01
     HANDSHAKE_ACK = 0x02
     HANDSHAKE_REJECT = 0x03
+    HANDSHAKE_AUTH_REQUIRED = 0x04  # v1.6.0: Server requests PIN
+    HANDSHAKE_AUTH_RESPONSE = 0x05  # v1.6.0: Client sends PIN hash
+    HANDSHAKE_AUTH_SUCCESS = 0x06   # v1.6.0: Auth succeeded
+    HANDSHAKE_AUTH_FAILED = 0x07    # v1.6.0: Auth failed (invalid PIN)
     PING = 0x10
     PONG = 0x11
     DISCONNECT = 0x1F
@@ -103,6 +107,13 @@ class SystemActionId(IntEnum):
     SPOTLIGHT = 7
 
 
+class ActivityStatus(IntEnum):
+    """Activity status identifiers for SYSTEM_STATE_RESPONSE."""
+    ACTIVE = 0  # Currently using keyboard/mouse (< 2s idle)
+    IDLE = 1    # Stepped away from keyboard (2s-5min)
+    AWAY = 2    # Left the Mac (> 5min)
+
+
 # ---------------------------------------------------------------------------
 # Struct formats (big-endian)
 # ---------------------------------------------------------------------------
@@ -117,13 +128,19 @@ MOUSE_SCROLL_FMT = ">Ihh"     # timestamp(u32), dx(i16), dy(i16)
 MOUSE_DRAG_FMT = ">IBhh"      # timestamp(u32), button(u8), dx(i16), dy(i16)
 KEY_EVENT_FMT = ">IBHB"       # timestamp(u32), action(u8), keycode(u16), modifiers(u8)
 SYSTEM_ACTION_FMT = ">IB"      # timestamp(u32), action_id(u8)
-SYSTEM_STATE_RESPONSE_FMT = ">HHH"  # brightness(u16), volume(u16), flags(u16)
+SYSTEM_STATE_RESPONSE_FMT = ">HHHBH"  # brightness(u16), volume(u16), flags(u16), activity_status(u8), idle_time(u16)
 ACK_FMT = ">B"                # app_id(u8)
 COMMAND_ERROR_FMT = ">B"      # app_id(u8)
 
 HANDSHAKE_REQ_FMT = ">HH"     # client_version(u16), flags(u16)  + 32-byte name
 HANDSHAKE_ACK_FMT = ">HHHH"   # server_version(u16), flags(u16), udp_port(u16), keepalive(u16)
 HANDSHAKE_REJECT_FMT = ">HH"  # server_version(u16), reason_code(u16)
+
+# PIN Authentication (v1.6.0)
+HANDSHAKE_AUTH_REQUIRED_FMT = ">16s4s"  # salt(16 bytes), challenge(4 bytes)
+HANDSHAKE_AUTH_RESPONSE_FMT = ">32s"    # pin_hash(32 bytes SHA-256)
+HANDSHAKE_AUTH_SUCCESS_FMT = ">HH16s"   # server_version(u16), flags(u16), session_token(16 bytes)
+HANDSHAKE_AUTH_FAILED_FMT = ">H"        # retry_after(u16 seconds)
 
 HANDSHAKE_REQ_NAME_LEN = CLIENT_NAME_MAX_LENGTH  # 32 bytes, null-padded
 
@@ -140,6 +157,10 @@ COMMAND_ERROR_SIZE = struct.calcsize(COMMAND_ERROR_FMT)
 HANDSHAKE_REQ_SIZE = struct.calcsize(HANDSHAKE_REQ_FMT) + HANDSHAKE_REQ_NAME_LEN
 HANDSHAKE_ACK_SIZE = struct.calcsize(HANDSHAKE_ACK_FMT)
 HANDSHAKE_REJECT_SIZE = struct.calcsize(HANDSHAKE_REJECT_FMT)
+HANDSHAKE_AUTH_REQUIRED_SIZE = struct.calcsize(HANDSHAKE_AUTH_REQUIRED_FMT)
+HANDSHAKE_AUTH_RESPONSE_SIZE = struct.calcsize(HANDSHAKE_AUTH_RESPONSE_FMT)
+HANDSHAKE_AUTH_SUCCESS_SIZE = struct.calcsize(HANDSHAKE_AUTH_SUCCESS_FMT)
+HANDSHAKE_AUTH_FAILED_SIZE = struct.calcsize(HANDSHAKE_AUTH_FAILED_FMT)
 
 
 # ---------------------------------------------------------------------------
@@ -212,7 +233,7 @@ class HandshakeAck:
 @dataclass(frozen=True, slots=True)
 class HandshakeReject:
     server_version: int
-    reason_code: int  # 1=version_mismatch, 2=busy
+    reason_code: int  # 1=version_mismatch, 2=busy, 3=auth_required
 
     def encode(self) -> bytes:
         payload = struct.pack(HANDSHAKE_REJECT_FMT, self.server_version, self.reason_code)
@@ -223,6 +244,81 @@ class HandshakeReject:
     def decode(cls, payload: bytes) -> Self:
         ver, reason = struct.unpack(HANDSHAKE_REJECT_FMT, payload)
         return cls(server_version=ver, reason_code=reason)
+
+
+@dataclass(frozen=True, slots=True)
+class HandshakeAuthRequired:
+    """Server requests PIN authentication (v1.6.0)"""
+    salt: bytes  # 16 bytes
+    challenge: bytes  # 4 bytes
+
+    def encode(self) -> bytes:
+        if len(self.salt) != 16:
+            raise ValueError(f"Salt must be 16 bytes, got {len(self.salt)}")
+        if len(self.challenge) != 4:
+            raise ValueError(f"Challenge must be 4 bytes, got {len(self.challenge)}")
+        payload = struct.pack(HANDSHAKE_AUTH_REQUIRED_FMT, self.salt, self.challenge)
+        header = Header(PROTOCOL_VERSION, MessageType.HANDSHAKE_AUTH_REQUIRED, len(payload))
+        return header.encode() + payload
+
+    @classmethod
+    def decode(cls, payload: bytes) -> Self:
+        salt, challenge = struct.unpack(HANDSHAKE_AUTH_REQUIRED_FMT, payload[:HANDSHAKE_AUTH_REQUIRED_SIZE])
+        return cls(salt=salt, challenge=challenge)
+
+
+@dataclass(frozen=True, slots=True)
+class HandshakeAuthResponse:
+    """Client sends PIN hash (v1.6.0)"""
+    pin_hash: bytes  # 32 bytes (SHA-256)
+
+    def encode(self) -> bytes:
+        if len(self.pin_hash) != 32:
+            raise ValueError(f"PIN hash must be 32 bytes, got {len(self.pin_hash)}")
+        payload = struct.pack(HANDSHAKE_AUTH_RESPONSE_FMT, self.pin_hash)
+        header = Header(PROTOCOL_VERSION, MessageType.HANDSHAKE_AUTH_RESPONSE, len(payload))
+        return header.encode() + payload
+
+    @classmethod
+    def decode(cls, payload: bytes) -> Self:
+        pin_hash, = struct.unpack(HANDSHAKE_AUTH_RESPONSE_FMT, payload[:HANDSHAKE_AUTH_RESPONSE_SIZE])
+        return cls(pin_hash=pin_hash)
+
+
+@dataclass(frozen=True, slots=True)
+class HandshakeAuthSuccess:
+    """Server confirms successful authentication (v1.6.0)"""
+    server_version: int
+    flags: int
+    session_token: bytes  # 16 bytes (reserved for future use)
+
+    def encode(self) -> bytes:
+        if len(self.session_token) != 16:
+            raise ValueError(f"Session token must be 16 bytes, got {len(self.session_token)}")
+        payload = struct.pack(HANDSHAKE_AUTH_SUCCESS_FMT, self.server_version, self.flags, self.session_token)
+        header = Header(PROTOCOL_VERSION, MessageType.HANDSHAKE_AUTH_SUCCESS, len(payload))
+        return header.encode() + payload
+
+    @classmethod
+    def decode(cls, payload: bytes) -> Self:
+        ver, flags, token = struct.unpack(HANDSHAKE_AUTH_SUCCESS_FMT, payload[:HANDSHAKE_AUTH_SUCCESS_SIZE])
+        return cls(server_version=ver, flags=flags, session_token=token)
+
+
+@dataclass(frozen=True, slots=True)
+class HandshakeAuthFailed:
+    """Server rejects invalid PIN with rate limiting (v1.6.0)"""
+    retry_after: int  # Seconds to wait before retry (0 = immediate)
+
+    def encode(self) -> bytes:
+        payload = struct.pack(HANDSHAKE_AUTH_FAILED_FMT, self.retry_after)
+        header = Header(PROTOCOL_VERSION, MessageType.HANDSHAKE_AUTH_FAILED, len(payload))
+        return header.encode() + payload
+
+    @classmethod
+    def decode(cls, payload: bytes) -> Self:
+        retry_after, = struct.unpack(HANDSHAKE_AUTH_FAILED_FMT, payload[:HANDSHAKE_AUTH_FAILED_SIZE])
+        return cls(retry_after=retry_after)
 
 
 @dataclass(frozen=True, slots=True)
@@ -356,28 +452,45 @@ class LaunchApp:
 
 @dataclass(frozen=True, slots=True)
 class SystemStateResponse:
-    """System state response — brightness, volume, flags."""
+    """System state response — brightness, volume, lock/activity status."""
     brightness: float
     volume: float
     is_muted: bool = False
     is_locked: bool = False
+    activity_status: str = "active"  # 'active', 'idle', 'away'
+    idle_time: float = 0.0  # seconds
 
     def encode(self) -> bytes:
         b = int(self.brightness * 100) & 0xFFFF
         v = int(self.volume * 100) & 0xFFFF
         flags = (0x01 if self.is_muted else 0) | (0x02 if self.is_locked else 0)
-        payload = struct.pack(SYSTEM_STATE_RESPONSE_FMT, b, v, flags)
+
+        # Map activity status to enum value
+        activity_map = {"active": ActivityStatus.ACTIVE, "idle": ActivityStatus.IDLE, "away": ActivityStatus.AWAY}
+        activity = activity_map.get(self.activity_status, ActivityStatus.ACTIVE)
+
+        # Clamp idle time to u16 range (0-65535 seconds, ~18 hours)
+        idle = int(min(self.idle_time, 65535)) & 0xFFFF
+
+        payload = struct.pack(SYSTEM_STATE_RESPONSE_FMT, b, v, flags, activity, idle)
         header = Header(PROTOCOL_VERSION, MessageType.SYSTEM_STATE_RESPONSE, len(payload))
         return header.encode() + payload
 
     @classmethod
     def decode(cls, payload: bytes) -> Self:
-        b, v, flags = struct.unpack(SYSTEM_STATE_RESPONSE_FMT, payload[:SYSTEM_STATE_RESPONSE_SIZE])
+        b, v, flags, activity, idle = struct.unpack(SYSTEM_STATE_RESPONSE_FMT, payload[:SYSTEM_STATE_RESPONSE_SIZE])
+
+        # Map enum value back to string
+        activity_map = {ActivityStatus.ACTIVE: "active", ActivityStatus.IDLE: "idle", ActivityStatus.AWAY: "away"}
+        activity_str = activity_map.get(activity, "active")
+
         return cls(
             brightness=b / 100.0,
             volume=v / 100.0,
             is_muted=bool(flags & 0x01),
             is_locked=bool(flags & 0x02),
+            activity_status=activity_str,
+            idle_time=float(idle),
         )
 
 

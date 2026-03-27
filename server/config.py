@@ -69,6 +69,19 @@ class ServerConfig:
         default_factory=lambda: os.environ.get("IOBUS_LOG_LEVEL", "INFO").upper()
     )
 
+    # Authentication (v1.6.0)
+    pin_enabled: bool = field(
+        default_factory=lambda: os.environ.get("IOBUS_PIN_ENABLED", "false").lower() == "true"
+    )
+    pin: str | None = field(default=None)  # 6-digit PIN, generated if None
+    pin_salt: bytes | None = field(default=None)  # 16-byte salt, generated if None
+
+    # mDNS Discovery (v1.6.0)
+    mdns_enabled: bool = field(
+        default_factory=lambda: os.environ.get("IOBUS_MDNS_ENABLED", "true").lower() == "true"
+    )
+    mdns_hostname: str | None = field(default=None)  # None = use system hostname
+
     # Derived -------------------------------------------------------------------
 
     @property

@@ -12,8 +12,8 @@ android {
         applicationId = "com.iobus.client"
         minSdk = 29
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.5.0"
+        versionCode = 3
+        versionName = "1.6.0"
     }
 
     buildTypes {
@@ -62,6 +62,9 @@ dependencies {
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.1")
+
+    // Security (v1.6.0 — encrypted PIN storage)
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
 
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")

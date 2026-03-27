@@ -15,6 +15,10 @@ object MessageType {
     const val HANDSHAKE_REQ: Byte = 0x01
     const val HANDSHAKE_ACK: Byte = 0x02
     const val HANDSHAKE_REJECT: Byte = 0x03
+    const val HANDSHAKE_AUTH_REQUIRED: Byte = 0x04  // v1.6.0: Server requests PIN
+    const val HANDSHAKE_AUTH_RESPONSE: Byte = 0x05  // v1.6.0: Client sends PIN hash
+    const val HANDSHAKE_AUTH_SUCCESS: Byte = 0x06  // v1.6.0: Auth succeeded
+    const val HANDSHAKE_AUTH_FAILED: Byte = 0x07   // v1.6.0: Auth failed
     const val PING: Byte = 0x10
     const val PONG: Byte = 0x11
     const val DISCONNECT: Byte = 0x1F
@@ -78,6 +82,12 @@ object SystemActionId {
     const val SPOTLIGHT: Byte = 7
 }
 
+object ActivityStatus {
+    const val ACTIVE: Byte = 0  // Currently using keyboard/mouse (< 2s idle)
+    const val IDLE: Byte = 1    // Stepped away from keyboard (2s-5min)
+    const val AWAY: Byte = 2    // Left the Mac (> 5min)
+}
+
 /**
  * Decoded system state from SYSTEM_STATE_RESPONSE.
  */
@@ -86,6 +96,8 @@ data class SystemStateData(
     val volume: Int,
     val isMuted: Boolean,
     val isLocked: Boolean,
+    val activityStatus: String,  // "active", "idle", or "away"
+    val idleTime: Int,  // seconds
 )
 
 /**
@@ -96,6 +108,62 @@ data class HandshakeAckData(
     val flags: Int,
     val udpPort: Int,
     val keepaliveInterval: Int,
+)
+
+/**
+ * Decoded auth challenge from server (v1.6.0).
+ */
+data class HandshakeAuthRequiredData(
+    val pinSalt: ByteArray,
+    val challenge: ByteArray,
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+        other as HandshakeAuthRequiredData
+        if (!pinSalt.contentEquals(other.pinSalt)) return false
+        if (!challenge.contentEquals(other.challenge)) return false
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = pinSalt.contentHashCode()
+        result = 31 * result + challenge.contentHashCode()
+        return result
+    }
+}
+
+/**
+ * Decoded auth success from server (v1.6.0).
+ */
+data class HandshakeAuthSuccessData(
+    val serverVersion: Int,
+    val flags: Int,
+    val sessionToken: ByteArray,
+) {
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (javaClass != other?.javaClass) return false
+        other as HandshakeAuthSuccessData
+        if (serverVersion != other.serverVersion) return false
+        if (flags != other.flags) return false
+        if (!sessionToken.contentEquals(other.sessionToken)) return false
+        return true
+    }
+
+    override fun hashCode(): Int {
+        var result = serverVersion
+        result = 31 * result + flags
+        result = 31 * result + sessionToken.contentHashCode()
+        return result
+    }
+}
+
+/**
+ * Decoded auth failure from server (v1.6.0).
+ */
+data class HandshakeAuthFailedData(
+    val retryAfter: Int,  // seconds
 )
 
 /**
@@ -161,6 +229,48 @@ object Messages {
         val udpPort = buf.getShort().toInt() and 0xFFFF
         val keepalive = buf.getShort().toInt() and 0xFFFF
         return HandshakeAckData(serverVersion, flags, udpPort, keepalive)
+    }
+
+    // ---- Authentication (v1.6.0) ----
+
+    fun decodeHandshakeAuthRequired(payload: ByteArray): HandshakeAuthRequiredData {
+        require(payload.size >= Constants.PIN_SALT_SIZE + Constants.PIN_CHALLENGE_SIZE) {
+            "Invalid HANDSHAKE_AUTH_REQUIRED payload size"
+        }
+        val pinSalt = payload.copyOfRange(0, Constants.PIN_SALT_SIZE)
+        val challenge = payload.copyOfRange(Constants.PIN_SALT_SIZE, Constants.PIN_SALT_SIZE + Constants.PIN_CHALLENGE_SIZE)
+        return HandshakeAuthRequiredData(pinSalt, challenge)
+    }
+
+    fun encodeHandshakeAuthResponse(pinHash: ByteArray): ByteArray {
+        require(pinHash.size == Constants.PIN_HASH_SIZE) {
+            "PIN hash must be ${Constants.PIN_HASH_SIZE} bytes (SHA-256)"
+        }
+        val header = encodeHeader(MessageType.HANDSHAKE_AUTH_RESPONSE, Constants.PIN_HASH_SIZE)
+        return header + pinHash
+    }
+
+    fun decodeHandshakeAuthSuccess(payload: ByteArray): HandshakeAuthSuccessData {
+        require(payload.size >= 4 + Constants.SESSION_TOKEN_SIZE) {
+            "Invalid HANDSHAKE_AUTH_SUCCESS payload size"
+        }
+        val buf = ByteBuffer.wrap(payload)
+        buf.order(ByteOrder.BIG_ENDIAN)
+        val serverVersion = buf.getShort().toInt() and 0xFFFF
+        val flags = buf.getShort().toInt() and 0xFFFF
+        val sessionToken = ByteArray(Constants.SESSION_TOKEN_SIZE)
+        buf.get(sessionToken)
+        return HandshakeAuthSuccessData(serverVersion, flags, sessionToken)
+    }
+
+    fun decodeHandshakeAuthFailed(payload: ByteArray): HandshakeAuthFailedData {
+        require(payload.size >= 2) {
+            "Invalid HANDSHAKE_AUTH_FAILED payload size"
+        }
+        val buf = ByteBuffer.wrap(payload)
+        buf.order(ByteOrder.BIG_ENDIAN)
+        val retryAfter = buf.getShort().toInt() and 0xFFFF
+        return HandshakeAuthFailedData(retryAfter)
     }
 
     // ---- Simple messages (no payload) ----
@@ -253,11 +363,34 @@ object Messages {
         val brightness = buf.getShort().toInt() and 0xFFFF
         val volume = buf.getShort().toInt() and 0xFFFF
         val flags = buf.getShort().toInt() and 0xFFFF
+
+        // Backward compatibility: check if new fields exist (protocol v3+)
+        val activityStatus: String
+        val idleTime: Int
+
+        if (payload.size >= 9) {  // New format: 6 bytes (old) + 1 + 2 = 9 bytes
+            val activityStatusByte = buf.get()
+            idleTime = buf.getShort().toInt() and 0xFFFF
+
+            // Map activity status byte to string
+            activityStatus = when (activityStatusByte) {
+                ActivityStatus.IDLE -> "idle"
+                ActivityStatus.AWAY -> "away"
+                else -> "active"
+            }
+        } else {
+            // Old format (protocol v2): default values
+            activityStatus = "active"
+            idleTime = 0
+        }
+
         return SystemStateData(
             brightness = brightness,
             volume = volume,
             isMuted = (flags and 0x01) != 0,
             isLocked = (flags and 0x02) != 0,
+            activityStatus = activityStatus,
+            idleTime = idleTime,
         )
     }
 
