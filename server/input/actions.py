@@ -131,6 +131,59 @@ class SystemActions:
             pass
         return False
 
+    @staticmethod
+    def get_screen_lock_status() -> bool:
+        """Check if the screen is locked.
+
+        Uses Quartz CGSessionCopyCurrentDictionary to detect screen lock state.
+        Returns False as fallback if detection fails.
+        """
+        try:
+            import Quartz  # type: ignore[import]
+            session_dict = Quartz.CGSessionCopyCurrentDictionary()
+            if session_dict:
+                return bool(session_dict.get("CGSSessionScreenIsLocked", False))
+        except Exception:
+            logger.debug("Failed to get screen lock status", exc_info=True)
+        return False
+
+    @staticmethod
+    def get_idle_time() -> float:
+        """Get idle time in seconds since last user activity.
+
+        Uses Quartz CGEventSourceSecondsSinceLastEventType to measure time
+        since the last keyboard or mouse event.
+        Returns 0.0 as fallback if detection fails.
+        """
+        try:
+            import Quartz  # type: ignore[import]
+            idle_seconds = Quartz.CGEventSourceSecondsSinceLastEventType(
+                Quartz.kCGEventSourceStateHIDSystemState,
+                Quartz.kCGAnyInputEventType
+            )
+            return float(idle_seconds)
+        except Exception:
+            logger.debug("Failed to get idle time", exc_info=True)
+        return 0.0
+
+    @staticmethod
+    def get_activity_status() -> str:
+        """Get activity status based on idle time.
+
+        Returns:
+            'active' - Currently using keyboard/mouse (< 2s idle)
+            'idle' - Stepped away from keyboard (2s-5min)
+            'away' - Left the Mac (> 5min)
+        """
+        idle_time = SystemActions.get_idle_time()
+
+        if idle_time < 2:
+            return "active"
+        elif idle_time < 300:  # 5 minutes
+            return "idle"
+        else:
+            return "away"
+
     def lock_screen(self) -> None:
         """Lock the screen via Ctrl + Cmd + Q."""
         logger.info("Action: lock screen (Ctrl+Cmd+Q)")

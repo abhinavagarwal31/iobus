@@ -1,15 +1,18 @@
 # IOBus
 
-A wireless Android-to-macOS remote control system.
+A wireless Android-to-macOS remote control system with secure PIN authentication and automatic discovery.
 
 ## Overview
 
-IOBus turns an Android phone into a keyboard, trackpad, and system controller for macOS. It communicates over local Wi-Fi using a custom binary protocol. No internet connection is required.
+IOBus turns an Android phone into a keyboard, trackpad, and system controller for macOS. It communicates over local Wi-Fi using a custom binary protocol with PIN authentication. No internet connection is required.
 
-The Android client captures touch and key input, encodes it into binary messages using a 4-byte header format, and sends them to a Python server running on macOS. The server injects input events into macOS via CGEvent through the Accessibility API. TCP carries the control plane (handshake, keepalive); UDP carries the data plane (input events).
+The Android client captures touch and key input, encodes it into binary messages using a 4-byte header format, and sends them to a Python server running on macOS. The server injects input events into macOS via CGEvent through the Accessibility API. TCP carries the control plane (handshake, authentication, keepalive); UDP carries the data plane (input events).
 
 ## Features
 
+- **Security (v1.6.0)**: PIN authentication with SHA-256 hashing, rate limiting (5 attempts per IP, 5-minute lockout), encrypted PIN storage on Android
+- **Auto-Discovery (v1.6.0)**: mDNS/Bonjour service advertisement, server hostname resolution survives IP changes
+- **Connection Reliability (v1.6.0)**: Extended keepalive timeout (120s grace period, up from 15s)
 - Full on-screen keyboard with modifier tracking (Shift, Ctrl, Alt, Cmd)
 - Function key row with media key mappings for F1, F2, F3 (Mission Control), F4 (Spotlight), F7--F12. F5--F6 system-level actions (Dictation, Do Not Disturb) are deferred to v2
 - Trackpad with single-finger move, tap-to-click, two-finger scroll, two-finger tap for right-click, and long-press drag
@@ -19,7 +22,7 @@ The Android client captures touch and key input, encodes it into binary messages
 - Screen lock and power actions on the Home screen (power is passcode-gated)
 - Corner floating menu with vertical scrollable mode selection and system actions
 - Passcode-gated shutdown and restart (SHA-256 hashed, stored locally on device)
-- Persistent TCP connection with server-driven keepalive (5-second interval, 15-second timeout)
+- Persistent TCP connection with server-driven keepalive (10-second interval, 120-second timeout)
 - Saved server presets for quick manual reconnection
 - Single-activity Compose navigation
 
@@ -30,16 +33,25 @@ Android Client (Kotlin / Jetpack Compose)       macOS Server (Python 3.12 / asyn
 +-------------------------------------------+    +-------------------------------------------+
 | TouchProcessor           -- UDP ----------+--->| MouseController    (CGEvent injection)    |
 | KeyProcessor             -- UDP ----------+--->| KeyboardController (CGEvent injection)    |
-| ConnectionManager        -- TCP ----------+--->| TCPControlServer   (handshake, keepalive) |
+| ConnectionManager        -- TCP ----------+--->| TCPControlServer   (handshake, auth)      |
 | ControlsPanel            -- UDP ----------+--->| SystemActions      (AppleScript, pmset)   |
+| PinStore (encrypted)     -- local --------+--->| PinAuthenticator   (SHA-256, rate limit)  |
+| MdnsDiscovery (NSD)      -- mDNS ---------+--->| MdnsAdvertiser     (_iobus._tcp.local.)   |
 +-------------------------------------------+    +-------------------------------------------+
 ```
 
-**TCP (port 9800)** -- Handshake, keepalive (ping/pong), disconnect, system state push (brightness, volume, mute), app launch commands. The server pushes a `SYSTEM_STATE_RESPONSE` immediately on handshake and again whenever brightness, volume, or mute changes, so slider positions are always in sync.
+**TCP (port 9800)** -- Handshake with PIN authentication (v1.6.0), keepalive (ping/pong), disconnect, system state push (brightness, volume, mute), app launch commands. The server pushes a `SYSTEM_STATE_RESPONSE` immediately on handshake and again whenever brightness, volume, or mute changes, so slider positions are always in sync.
 
 **UDP (port 9801)** -- Mouse move/click/scroll/drag, key events, system actions, app launch commands.
 
 **Wire format** -- 4-byte header `[version:u8][type:u8][payload_len:u16be]` followed by a variable-length payload. All multi-byte values are big-endian. Encoding and decoding use Python `struct` and Kotlin `ByteBuffer` with no JSON involved.
+
+**Protocol v2 (v1.6.0)** -- Added 4 new message types for PIN authentication:
+
+- `HANDSHAKE_AUTH_REQUIRED (0x04)` - Server sends salt + challenge
+- `HANDSHAKE_AUTH_RESPONSE (0x05)` - Client sends SHA-256(PIN + salt + challenge)
+- `HANDSHAKE_AUTH_SUCCESS (0x06)` - Auth succeeded, returns session token
+- `HANDSHAKE_AUTH_FAILED (0x07)` - Auth failed, returns retry_after seconds
 
 ## Design Principles
 
@@ -56,17 +68,18 @@ IOBus v1 prioritizes:
 ```
 IOBus/
 ├── protocol/                   Shared protocol definitions (mirrored in Kotlin)
-│   ├── constants.py            Version, ports, timeouts
+│   ├── constants.py            Version, ports, timeouts, auth constants
 │   ├── keycodes.py             Platform-neutral key code enum
 │   └── messages.py             Message types, binary encode/decode
 ├── server/                     macOS server (Python 3.12, asyncio)
-│   ├── main.py                 Entry point, CLI argument parsing
+│   ├── main.py                 Entry point, CLI argument parsing, PIN display
 │   ├── __main__.py             python -m server hook
 │   ├── config.py               ServerConfig (CLI / env / defaults)
 │   ├── permissions.py          Accessibility permission gate
-│   ├── discovery.py            LAN IP detection
+│   ├── discovery.py            LAN IP detection, mDNS advertiser (v1.6.0)
+│   ├── auth.py                 PIN authentication, rate limiting (v1.6.0)
 │   ├── transport/
-│   │   ├── tcp_server.py       TCP control plane
+│   │   ├── tcp_server.py       TCP control plane with auth flow (v1.6.0)
 │   │   └── udp_server.py       UDP data plane
 │   └── input/
 │       ├── keyboard.py         CGEvent keyboard injection
@@ -74,10 +87,11 @@ IOBus/
 │       └── actions.py          System actions (lock, sleep, shutdown, restart, spotlight, siri)
 ├── android/                    Android client (Kotlin, Jetpack Compose)
 │   └── app/src/main/java/com/iobus/client/
-│       ├── protocol/           Constants, KeyCodes, Messages
+│       ├── protocol/           Constants, KeyCodes, Messages (v2 with auth types)
 │       ├── network/            TCP/UDP clients, ConnectionManager, SavedServersStore
 │       ├── input/              TouchProcessor, KeyProcessor
-│       ├── security/           PasscodeStore (SHA-256)
+│       ├── security/           PasscodeStore (SHA-256), PinStore (encrypted, v1.6.0)
+│       ├── discovery/          MdnsDiscovery (NSD, v1.6.0)
 │       └── ui/                 Compose UI (connection, control, theme)
 ├── notes/                      Architecture and design notes
 ├── iobus.command               macOS double-click launcher script
@@ -130,6 +144,10 @@ On first launch, macOS will prompt for Accessibility permission. Grant it at **S
 The server prints connection details on startup:
 
 ```
+═══════════════════════════════════════════════
+  PIN Authentication Enabled
+  Pairing PIN: 482 915
+═══════════════════════════════════════════════
 ╔══════════════════════════════════════════════╗
 ║            SERVER READY                      ║
 ╠══════════════════════════════════════════════╣
@@ -138,6 +156,8 @@ The server prints connection details on startup:
 ║  UDP Port   : 9801                           ║
 ╚══════════════════════════════════════════════╝
 ```
+
+**v1.6.0 Security Note**: The server generates a random 6-digit PIN displayed on startup. Enter this PIN on the Android app when prompted. The PIN is stored encrypted on the device after successful authentication, so you won't need to enter it again unless the server PIN changes.
 
 Server CLI options:
 
@@ -149,7 +169,12 @@ Server CLI options:
 | `--log-level`             | INFO    | DEBUG, INFO, WARNING, or ERROR        |
 | `--skip-permission-check` | off     | Skip Accessibility check (debug only) |
 
-Environment variable overrides (`IOBUS_TCP_PORT`, `IOBUS_UDP_PORT`, `IOBUS_BIND_ADDRESS`, `IOBUS_LOG_LEVEL`, `IOBUS_KEEPALIVE_INTERVAL`, `IOBUS_KEEPALIVE_TIMEOUT_MULT`) are also supported.
+Environment variable overrides:
+
+- `IOBUS_TCP_PORT`, `IOBUS_UDP_PORT`, `IOBUS_BIND_ADDRESS`, `IOBUS_LOG_LEVEL`
+- `IOBUS_KEEPALIVE_INTERVAL` (default: 10s), `IOBUS_KEEPALIVE_TIMEOUT_MULT` (default: 12, gives 120s grace)
+- `IOBUS_PIN_ENABLED` (default: true), `IOBUS_MDNS_ENABLED` (default: true)
+- `IOBUS_MDNS_HOSTNAME` (default: system hostname)
 
 Alternatively, double-click `iobus.command` to start the server in the background. Logs are written to `/tmp/iobus-server.log`.
 
@@ -160,34 +185,43 @@ Alternatively, double-click `iobus.command` to start the server in the backgroun
 3. Connect a physical Android device with USB debugging enabled.
 4. Select the **debug** build variant.
 5. Click **Run** to build and install.
-6. Enter the server IP address displayed in the terminal.
-7. Tap **Connect**.
+6. (v1.6.0) The app will auto-discover servers via mDNS. Tap a discovered server or manually enter the IP address.
+7. Tap **Connect** and enter the 6-digit PIN shown on the server when prompted.
+8. The PIN is saved encrypted on the device, so subsequent connections are automatic.
 
-No runtime permissions need to be granted on Android. The app uses `INTERNET`, `ACCESS_WIFI_STATE`, and `ACCESS_NETWORK_STATE`, all of which are granted at install time.
+Required Android permissions (granted at install time):
+
+- `INTERNET` - Network communication
+- `ACCESS_WIFI_STATE`, `ACCESS_NETWORK_STATE` - mDNS discovery (v1.6.0)
 
 ## First Run Checklist
 
-1. Start the macOS server and confirm the IP address is printed.
+1. Start the macOS server and note the displayed PIN (v1.6.0).
 2. Ensure both the Mac and the Android device are on the same Wi-Fi network or hotspot.
 3. Launch the IOBus app on Android.
-4. Enter the server IP and tap Connect.
-5. Verify the status indicator shows connected (green dot).
-6. Test keyboard input and trackpad movement.
+4. If mDNS discovery finds the server, tap it. Otherwise, manually enter the server IP.
+5. Tap Connect and enter the 6-digit PIN when prompted.
+6. Verify the status indicator shows connected (green dot).
+7. Test keyboard input and trackpad movement.
 
 ## Troubleshooting
 
-| Symptom                      | Likely Cause                          | Fix                                                                                                      |
-| ---------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| Connection refused           | macOS firewall blocking the port      | Allow incoming connections for Python in System Settings > Firewall, or temporarily disable the firewall |
-| Cannot inject input          | Accessibility permission not granted  | Open System Settings > Privacy & Security > Accessibility and ensure your terminal app is checked        |
-| No response after connecting | Wrong IP address entered              | Confirm the IP printed by the server matches what you entered on Android                                 |
-| UDP input not working        | Devices on different subnets or VLANs | Ensure both devices are on the same Wi-Fi network; avoid guest networks with client isolation            |
-| Server exits immediately     | Python version too old                | Run `python3 --version` and confirm 3.12 or later                                                        |
+| Symptom                        | Likely Cause                          | Fix                                                                                                      |
+| ------------------------------ | ------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| Connection refused             | macOS firewall blocking the port      | Allow incoming connections for Python in System Settings > Firewall, or temporarily disable the firewall |
+| Cannot inject input            | Accessibility permission not granted  | Open System Settings > Privacy & Security > Accessibility and ensure your terminal app is checked        |
+| Authentication failed (v1.6.0) | Wrong PIN entered                     | Check the PIN displayed on the server terminal; case-sensitive, 6 digits                                 |
+| No servers discovered (v1.6.0) | mDNS not working on network           | Manually enter the server IP address; some networks block mDNS/Bonjour                                   |
+| Rate limited (v1.6.0)          | Too many failed auth attempts         | Wait 5 minutes, then retry with the correct PIN                                                          |
+| No response after connecting   | Wrong IP address entered              | Confirm the IP printed by the server matches what you entered on Android                                 |
+| UDP input not working          | Devices on different subnets or VLANs | Ensure both devices are on the same Wi-Fi network; avoid guest networks with client isolation            |
+| Server exits immediately       | Python version too old                | Run `python3 --version` and confirm 3.12 or later                                                        |
+| Connection drops frequently    | Weak Wi-Fi signal or network issues   | Move devices closer to router; check for interference; v1.6.0 has 120s keepalive timeout                 |
 
-## Limitations (v1.5)
+## Limitations (v1.6.0)
 
-- No encryption. All traffic is plaintext over the local network.
-- No automatic reconnection. If the connection drops, the user must reconnect manually (saved presets make this quick).
+- No encryption of data plane traffic. Control plane uses hashed PIN auth, but UDP input events are plaintext over the local network.
+- No automatic reconnection. If the connection drops, the user must reconnect manually (saved PINs and hostnames make this quick).
 - Caps Lock key is displayed but non-functional. Synthetic Caps Lock injection is unreliable on macOS; deferred to v2.
 - F5--F6 system actions (Dictation, Do Not Disturb) are deferred to v2. These keys currently emit standard F5--F6 key events.
 - Passcode protection for power actions is enforced on the Android client only. The macOS server does not independently validate power commands.
@@ -196,7 +230,18 @@ No runtime permissions need to be granted on Android. The app uses `INTERNET`, `
 
 ## Security
 
-IOBus communicates over the local network only. The protocol includes no encryption or transport-layer security in v1. There is no authentication beyond the initial protocol handshake. The passcode gate for power actions is enforced on the Android client and is not a server-side security boundary. The system is designed for trusted environments such as a home network or personal hotspot. Do not expose the server port to untrusted networks.
+**v1.6.0 Security Model:**
+
+IOBus now requires PIN authentication by default. The 6-digit PIN is displayed on the server terminal at startup and must be entered on first connection. Authentication uses SHA-256 hashing with salt + challenge to prevent replay attacks. Rate limiting (5 attempts per IP, 5-minute lockout) prevents brute force. PINs are stored encrypted on Android using Android Keystore.
+
+**Remaining Limitations:**
+
+- Data plane (UDP input events) is not encrypted. This is acceptable for trusted local networks.
+- No TLS/SSL for TCP control plane. PIN auth provides authentication but not transport encryption.
+- The system is designed for trusted environments such as a home network or personal hotspot.
+- Do not expose the server port to untrusted networks or the internet.
+
+mDNS/Bonjour advertisement exposes the server presence on the local network. This is intentional for automatic discovery. Disable with `IOBUS_MDNS_ENABLED=false` if you prefer manual IP entry only.
 
 ## Roadmap
 
@@ -206,7 +251,16 @@ IOBus communicates over the local network only. The protocol includes no encrypt
 - Enhanced trackpad gestures
 - Cross-platform client support
 
-## Development Status (v1.5)
+## Development Status (v1.6.0)
+
+**v1.6.0** -- Security and reliability enhancements.
+
+- **PIN Authentication**: 6-digit PIN with SHA-256 hashing, salt + challenge, rate limiting (5 attempts, 5-min lockout)
+- **mDNS Auto-Discovery**: Server advertises as `_iobus._tcp.local.` with hostname, port, and auth requirements
+- **Connection Reliability**: Keepalive timeout extended to 120s (was 15s), hostname resolution survives IP changes
+- **Encrypted PIN Storage**: Android stores PINs encrypted using Android Keystore
+- **Protocol v2**: Added 4 new message types for authentication handshake
+- **Server Status Display**: PIN shown in bordered box on startup for easy pairing
 
 **v1.5** -- Stable foundation with enhanced system integration.
 

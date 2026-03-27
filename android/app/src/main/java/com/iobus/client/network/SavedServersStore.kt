@@ -39,6 +39,28 @@ class SavedServersStore(context: Context) {
         reload()
     }
 
+    // Last connection tracking for auto-reconnect
+    fun saveLastConnection(host: String, port: Int) {
+        prefs.edit()
+            .putString("__last_host", host)
+            .putInt("__last_port", port)
+            .apply()
+    }
+
+    fun getLastConnection(): SavedServer? {
+        val host = prefs.getString("__last_host", null) ?: return null
+        val port = prefs.getInt("__last_port", 0)
+        if (port == 0) return null
+        return SavedServer(name = "Last Connection", host = host, port = port)
+    }
+
+    fun clearLastConnection() {
+        prefs.edit()
+            .remove("__last_host")
+            .remove("__last_port")
+            .apply()
+    }
+
     private fun reload() {
         _servers.value = prefs.all
             .mapNotNull { (name, value) ->

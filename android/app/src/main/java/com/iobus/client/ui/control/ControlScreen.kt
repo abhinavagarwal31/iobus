@@ -303,6 +303,51 @@ private fun HomeScreen(
             )
         }
 
+        // Mac status display — lock and activity
+        val systemState by connectionManager.systemState.collectAsState()
+        systemState?.let { state ->
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth(0.86f)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(HudSurfaceElevated.copy(alpha = 0.42f))
+                    .border(0.5.dp, HudSurfaceBorder.copy(alpha = 0.55f), RoundedCornerShape(10.dp))
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                val lockLabel = if (state.isLocked) "LOCKED" else "UNLOCKED"
+                val lockColor = if (state.isLocked) HudAmber else HudGreen
+                StatusPill(
+                    title = "SECURITY",
+                    label = lockLabel,
+                    iconRes = LucideRes.Lock,
+                    color = lockColor,
+                    modifier = Modifier.weight(1f),
+                )
+
+                val activityLabel = state.activityStatus.uppercase(java.util.Locale.ROOT)
+                val activityColor = when (state.activityStatus) {
+                    "active" -> HudCyan
+                    "idle" -> HudCyanDim
+                    else -> HudTextSecondary
+                }
+                val activityIcon = when (state.activityStatus) {
+                    "active" -> LucideRes.Zap
+                    "idle" -> LucideRes.Touchpad
+                    else -> LucideRes.Moon
+                }
+                StatusPill(
+                    title = "ACTIVITY",
+                    label = activityLabel,
+                    iconRes = activityIcon,
+                    color = activityColor,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+
         // ── Visual anchor: thin cyan line ──
         Spacer(Modifier.height(16.dp))
 
@@ -448,6 +493,54 @@ private fun HomeSystemButton(
 }
 
 // ─────────────────────────────────────────────────────────
+// Status Pill — displays Mac lock and activity status
+// ─────────────────────────────────────────────────────────
+
+@Composable
+private fun StatusPill(
+    title: String,
+    label: String,
+    @DrawableRes iconRes: Int,
+    color: Color,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(color.copy(alpha = 0.08f))
+            .border(0.5.dp, color.copy(alpha = 0.22f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = title,
+            color = HudTextSecondary.copy(alpha = 0.72f),
+            fontSize = 7.sp,
+            fontWeight = FontWeight.Medium,
+            letterSpacing = 1.2.sp,
+        )
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            HudIcon(
+                iconRes = iconRes,
+                tint = color.copy(alpha = 0.92f),
+                modifier = Modifier.size(14.dp),
+            )
+            Text(
+                text = label,
+                color = color.copy(alpha = 0.9f),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 1.4.sp,
+            )
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────
 // Mode Selector Row — reusable enclosed container
 // ─────────────────────────────────────────────────────────
 
@@ -531,5 +624,4 @@ private fun ModeSelectorRow(
         }
     }
 }
-
 
