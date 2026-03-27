@@ -2,3 +2,6 @@
 pyobjc-core>=10.0
 pyobjc-framework-Quartz>=10.0
 pyobjc-framework-ApplicationServices>=10.0
+
+# mDNS service discovery (v1.6.0)
+zeroconf>=0.132.0

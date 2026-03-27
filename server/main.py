@@ -17,7 +17,8 @@ import logging
 import signal
 
 from server.config import ServerConfig
-from server.discovery import print_connection_info
+from server.discovery import print_connection_info, MdnsAdvertiser
+from server.auth import PinAuthenticator
 from server.input.actions import SystemActions
 from server.input.keyboard import KeyboardController
 from server.input.mouse import MouseController
@@ -90,8 +91,31 @@ async def _run(config: ServerConfig) -> None:
     # System actions (shared between TCP and UDP handlers)
     system_actions = SystemActions(keyboard)
 
+    # PIN authentication (v1.6.0)
+    authenticator: PinAuthenticator | None = None
+    if config.pin_enabled:
+        authenticator = PinAuthenticator(config.pin, config.pin_salt)
+        pin_display = authenticator.get_pin_display()
+        logger.info("═" * 50)
+        logger.info("  PIN Authentication Enabled")
+        logger.info("  Pairing PIN: %s", pin_display)
+        logger.info("═" * 50)
+
+    # mDNS service advertisement (v1.6.0)
+    mdns: MdnsAdvertiser | None = None
+    if config.mdns_enabled:
+        mdns = MdnsAdvertiser(
+            port=config.tcp_port,
+            hostname=config.mdns_hostname,
+            auth_enabled=config.pin_enabled,
+        )
+        if mdns.start():
+            logger.info("mDNS: advertising as '_iobus._tcp.local.'")
+        else:
+            logger.warning("mDNS: failed to start (zeroconf not available)")
+
     # Transport servers
-    tcp_server = TCPControlServer(config, system_actions)
+    tcp_server = TCPControlServer(config, system_actions, authenticator)
     udp_server = UDPDataServer(config, tcp_server, mouse, keyboard)
 
     await tcp_server.start(loop)
@@ -114,6 +138,11 @@ async def _run(config: ServerConfig) -> None:
     logger.info("Shutting down…")
     await udp_server.stop()
     await tcp_server.stop()
+
+    if mdns:
+        mdns.stop()
+        logger.info("mDNS: service unregistered")
+
     logger.info("Server stopped cleanly")
 
 
@@ -122,7 +151,7 @@ def main() -> None:
     config = _build_config(args)
 
     _setup_logging(config.log_level)
-    logger.info("IOBus server starting  |  %s", config.summary())
+    logger.info("IOBus server v1.6.0 starting  |  %s", config.summary())
 
     # Permission gate
     if not args.skip_permission_check:
