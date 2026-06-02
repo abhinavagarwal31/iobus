@@ -44,3 +44,6 @@ android/local.properties
 # ── Test artifacts ──
 *.apk
 *.aab
+
+# –– Notes ––
+notes/
