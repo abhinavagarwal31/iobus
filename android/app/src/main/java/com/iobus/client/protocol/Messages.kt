@@ -98,6 +98,8 @@ data class SystemStateData(
     val isLocked: Boolean,
     val activityStatus: String,  // "active", "idle", or "away"
     val idleTime: Int,  // seconds
+    val batteryPercent: Int = 100,  // 0-100
+    val isCharging: Boolean = false,
 )
 
 /**
@@ -384,6 +386,14 @@ object Messages {
             idleTime = 0
         }
 
+        // Backward compatibility: battery byte only present on protocol v4+ (10 bytes total)
+        val batteryPercent: Int
+        if (payload.size >= 10) {
+            batteryPercent = buf.get().toInt() and 0xFF
+        } else {
+            batteryPercent = 100
+        }
+
         return SystemStateData(
             brightness = brightness,
             volume = volume,
@@ -391,6 +401,8 @@ object Messages {
             isLocked = (flags and 0x02) != 0,
             activityStatus = activityStatus,
             idleTime = idleTime,
+            batteryPercent = batteryPercent,
+            isCharging = (flags and 0x04) != 0,
         )
     }
 

@@ -307,44 +307,73 @@ private fun HomeScreen(
         val systemState by connectionManager.systemState.collectAsState()
         systemState?.let { state ->
             Spacer(Modifier.height(8.dp))
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth(0.86f)
                     .clip(RoundedCornerShape(10.dp))
                     .background(HudSurfaceElevated.copy(alpha = 0.42f))
                     .border(0.5.dp, HudSurfaceBorder.copy(alpha = 0.55f), RoundedCornerShape(10.dp))
                     .padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                val lockLabel = if (state.isLocked) "LOCKED" else "UNLOCKED"
-                val lockColor = if (state.isLocked) HudAmber else HudGreen
-                StatusPill(
-                    title = "SECURITY",
-                    label = lockLabel,
-                    iconRes = LucideRes.Lock,
-                    color = lockColor,
-                    modifier = Modifier.weight(1f),
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    val lockLabel = if (state.isLocked) "LOCKED" else "UNLOCKED"
+                    val lockColor = if (state.isLocked) HudAmber else HudGreen
+                    StatusPill(
+                        title = "SECURITY",
+                        label = lockLabel,
+                        iconRes = LucideRes.Lock,
+                        color = lockColor,
+                        modifier = Modifier.weight(1f),
+                    )
 
-                val activityLabel = state.activityStatus.uppercase(java.util.Locale.ROOT)
-                val activityColor = when (state.activityStatus) {
-                    "active" -> HudCyan
-                    "idle" -> HudCyanDim
-                    else -> HudTextSecondary
+                    val activityLabel = state.activityStatus.uppercase(java.util.Locale.ROOT)
+                    val activityColor = when (state.activityStatus) {
+                        "active" -> HudCyan
+                        "idle" -> HudCyanDim
+                        else -> HudTextSecondary
+                    }
+                    val activityIcon = when (state.activityStatus) {
+                        "active" -> LucideRes.Zap
+                        "idle" -> LucideRes.Touchpad
+                        else -> LucideRes.Moon
+                    }
+                    StatusPill(
+                        title = "ACTIVITY",
+                        label = activityLabel,
+                        iconRes = activityIcon,
+                        color = activityColor,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
-                val activityIcon = when (state.activityStatus) {
-                    "active" -> LucideRes.Zap
-                    "idle" -> LucideRes.Touchpad
-                    else -> LucideRes.Moon
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                ) {
+                    val batteryLabel = if (state.isCharging) "CHARGING" else "${state.batteryPercent}%"
+                    val batteryColor = when {
+                        state.isCharging -> HudGreen
+                        state.batteryPercent <= 20 -> HudRed
+                        else -> HudCyan
+                    }
+                    val batteryIcon = when {
+                        state.isCharging -> LucideRes.BatteryCharging
+                        state.batteryPercent <= 20 -> LucideRes.BatteryLow
+                        else -> LucideRes.Battery
+                    }
+                    StatusPill(
+                        title = "POWER",
+                        label = batteryLabel,
+                        iconRes = batteryIcon,
+                        color = batteryColor,
+                        modifier = Modifier.fillMaxWidth(0.5f),
+                    )
                 }
-                StatusPill(
-                    title = "ACTIVITY",
-                    label = activityLabel,
-                    iconRes = activityIcon,
-                    color = activityColor,
-                    modifier = Modifier.weight(1f),
-                )
             }
         }
 

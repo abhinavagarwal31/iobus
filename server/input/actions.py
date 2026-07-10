@@ -132,6 +132,29 @@ class SystemActions:
         return False
 
     @staticmethod
+    def get_battery_status() -> tuple[float, bool]:
+        """Get (battery_percentage, is_charging) in a single `pmset` call.
+
+        Parses `pmset -g batt` output, e.g.:
+            "Now drawing from 'AC Power'\\n -InternalBattery-0 (id=...) 99%; finishing charge; ..."
+        Returns (1.0, False) as a fallback (e.g. desktop Macs with no battery, or parse failure).
+        """
+        try:
+            result = subprocess.run(
+                ["pmset", "-g", "batt"],
+                capture_output=True, text=True, timeout=3,
+            )
+            if result.returncode == 0:
+                lines = result.stdout.splitlines()
+                is_charging = "AC Power" in lines[0] if lines else False
+                m = re.search(r'(\d+)%', result.stdout)
+                percentage = max(0.0, min(1.0, int(m.group(1)) / 100.0)) if m else 1.0
+                return percentage, is_charging
+        except (subprocess.SubprocessError, FileNotFoundError, IndexError):
+            pass
+        return 1.0, False  # safe default
+
+    @staticmethod
     def get_screen_lock_status() -> bool:
         """Check if the screen is locked.
 

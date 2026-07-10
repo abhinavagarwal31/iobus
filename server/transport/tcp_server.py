@@ -337,20 +337,23 @@ class TCPControlProtocol(asyncio.Protocol):
             self._transport.close()
 
     def _on_get_system_state(self) -> None:
-        """Respond with current brightness, volume, mute, lock, and activity state."""
+        """Respond with current brightness, volume, mute, lock, activity, and battery state."""
         brightness = SystemActions.get_brightness()
         volume = SystemActions.get_volume()
         muted = SystemActions.get_mute()
         locked = SystemActions.get_screen_lock_status()
         activity = SystemActions.get_activity_status()
         idle_time = SystemActions.get_idle_time()
+        battery_pct, charging = SystemActions.get_battery_status()
+        battery = int(battery_pct * 100)
         logger.info(
-            "System state request → brightness=%.2f, volume=%.2f, muted=%s, locked=%s, activity=%s",
-            brightness, volume, muted, locked, activity
+            "System state request → brightness=%.2f, volume=%.2f, muted=%s, locked=%s, activity=%s, battery=%d%%, charging=%s",
+            brightness, volume, muted, locked, activity, battery, charging
         )
         resp = SystemStateResponse(
             brightness=brightness, volume=volume, is_muted=muted,
-            is_locked=locked, activity_status=activity, idle_time=idle_time
+            is_locked=locked, activity_status=activity, idle_time=idle_time,
+            battery_percent=battery, is_charging=charging,
         )
         self._send(resp.encode())
 
@@ -374,17 +377,21 @@ class TCPControlProtocol(asyncio.Protocol):
             last_l = await loop.run_in_executor(None, SystemActions.get_screen_lock_status)
             last_a = await loop.run_in_executor(None, SystemActions.get_activity_status)
             last_i = await loop.run_in_executor(None, SystemActions.get_idle_time)
+            last_batt_pct, last_c = await loop.run_in_executor(None, SystemActions.get_battery_status)
+            last_batt = int(last_batt_pct * 100)
         except Exception:
             last_b, last_v, last_m, last_l, last_a, last_i = 0.5, 0.5, False, False, "active", 0.0
+            last_batt, last_c = 100, False
 
         # Push initial state so the app syncs all values immediately
         self._send(SystemStateResponse(
             brightness=last_b, volume=last_v, is_muted=last_m,
-            is_locked=last_l, activity_status=last_a, idle_time=last_i
+            is_locked=last_l, activity_status=last_a, idle_time=last_i,
+            battery_percent=last_batt, is_charging=last_c,
         ).encode())
         logger.debug(
-            "State watcher: initial push brightness=%.2f volume=%.2f muted=%s locked=%s activity=%s",
-            last_b, last_v, last_m, last_l, last_a
+            "State watcher: initial push brightness=%.2f volume=%.2f muted=%s locked=%s activity=%s battery=%d%% charging=%s",
+            last_b, last_v, last_m, last_l, last_a, last_batt, last_c
         )
 
         try:
@@ -404,33 +411,29 @@ class TCPControlProtocol(asyncio.Protocol):
                     else:
                         a = "away"
 
-                    # Only get other values if activity changed or on first iteration
-                    if a != last_a:
-                        # Activity changed - get all current values
-                        b = await loop.run_in_executor(None, SystemActions.get_brightness)
-                        v = await loop.run_in_executor(None, SystemActions.get_volume)
-                        m = await loop.run_in_executor(None, SystemActions.get_mute)
-                        l = await loop.run_in_executor(None, SystemActions.get_screen_lock_status)
-                    else:
-                        # Activity unchanged - only check brightness/volume/mute/lock
-                        b = await loop.run_in_executor(None, SystemActions.get_brightness)
-                        v = await loop.run_in_executor(None, SystemActions.get_volume)
-                        m = await loop.run_in_executor(None, SystemActions.get_mute)
-                        l = await loop.run_in_executor(None, SystemActions.get_screen_lock_status)
+                    b = await loop.run_in_executor(None, SystemActions.get_brightness)
+                    v = await loop.run_in_executor(None, SystemActions.get_volume)
+                    m = await loop.run_in_executor(None, SystemActions.get_mute)
+                    l = await loop.run_in_executor(None, SystemActions.get_screen_lock_status)
+                    batt_pct, c = await loop.run_in_executor(None, SystemActions.get_battery_status)
+                    batt = int(batt_pct * 100)
                 except Exception:
                     continue
 
                 # Push update if any value changed
                 if (abs(b - last_b) > 0.005 or abs(v - last_v) > 0.005 or
-                    m != last_m or l != last_l or a != last_a):
+                    m != last_m or l != last_l or a != last_a or
+                    batt != last_batt or c != last_c):
                     last_b, last_v, last_m, last_l, last_a, last_i = b, v, m, l, a, i
+                    last_batt, last_c = batt, c
                     self._send(SystemStateResponse(
                         brightness=b, volume=v, is_muted=m,
-                        is_locked=l, activity_status=a, idle_time=i
+                        is_locked=l, activity_status=a, idle_time=i,
+                        battery_percent=batt, is_charging=c,
                     ).encode())
                     logger.debug(
-                        "State watcher: push change brightness=%.2f volume=%.2f muted=%s locked=%s activity=%s",
-                        b, v, m, l, a
+                        "State watcher: push change brightness=%.2f volume=%.2f muted=%s locked=%s activity=%s battery=%d%% charging=%s",
+                        b, v, m, l, a, batt, c
                     )
         except asyncio.CancelledError:
             pass  # Normal on disconnect

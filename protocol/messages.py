@@ -128,7 +128,7 @@ MOUSE_SCROLL_FMT = ">Ihh"     # timestamp(u32), dx(i16), dy(i16)
 MOUSE_DRAG_FMT = ">IBhh"      # timestamp(u32), button(u8), dx(i16), dy(i16)
 KEY_EVENT_FMT = ">IBHB"       # timestamp(u32), action(u8), keycode(u16), modifiers(u8)
 SYSTEM_ACTION_FMT = ">IB"      # timestamp(u32), action_id(u8)
-SYSTEM_STATE_RESPONSE_FMT = ">HHHBH"  # brightness(u16), volume(u16), flags(u16), activity_status(u8), idle_time(u16)
+SYSTEM_STATE_RESPONSE_FMT = ">HHHBHB"  # brightness(u16), volume(u16), flags(u16), activity_status(u8), idle_time(u16), battery_percent(u8)
 ACK_FMT = ">B"                # app_id(u8)
 COMMAND_ERROR_FMT = ">B"      # app_id(u8)
 
@@ -459,11 +459,17 @@ class SystemStateResponse:
     is_locked: bool = False
     activity_status: str = "active"  # 'active', 'idle', 'away'
     idle_time: float = 0.0  # seconds
+    battery_percent: int = 100  # 0-100
+    is_charging: bool = False
 
     def encode(self) -> bytes:
         b = int(self.brightness * 100) & 0xFFFF
         v = int(self.volume * 100) & 0xFFFF
-        flags = (0x01 if self.is_muted else 0) | (0x02 if self.is_locked else 0)
+        flags = (
+            (0x01 if self.is_muted else 0)
+            | (0x02 if self.is_locked else 0)
+            | (0x04 if self.is_charging else 0)
+        )
 
         # Map activity status to enum value
         activity_map = {"active": ActivityStatus.ACTIVE, "idle": ActivityStatus.IDLE, "away": ActivityStatus.AWAY}
@@ -471,14 +477,17 @@ class SystemStateResponse:
 
         # Clamp idle time to u16 range (0-65535 seconds, ~18 hours)
         idle = int(min(self.idle_time, 65535)) & 0xFFFF
+        battery = max(0, min(100, self.battery_percent)) & 0xFF
 
-        payload = struct.pack(SYSTEM_STATE_RESPONSE_FMT, b, v, flags, activity, idle)
+        payload = struct.pack(SYSTEM_STATE_RESPONSE_FMT, b, v, flags, activity, idle, battery)
         header = Header(PROTOCOL_VERSION, MessageType.SYSTEM_STATE_RESPONSE, len(payload))
         return header.encode() + payload
 
     @classmethod
     def decode(cls, payload: bytes) -> Self:
-        b, v, flags, activity, idle = struct.unpack(SYSTEM_STATE_RESPONSE_FMT, payload[:SYSTEM_STATE_RESPONSE_SIZE])
+        b, v, flags, activity, idle, battery = struct.unpack(
+            SYSTEM_STATE_RESPONSE_FMT, payload[:SYSTEM_STATE_RESPONSE_SIZE]
+        )
 
         # Map enum value back to string
         activity_map = {ActivityStatus.ACTIVE: "active", ActivityStatus.IDLE: "idle", ActivityStatus.AWAY: "away"}
@@ -491,6 +500,8 @@ class SystemStateResponse:
             is_locked=bool(flags & 0x02),
             activity_status=activity_str,
             idle_time=float(idle),
+            battery_percent=battery,
+            is_charging=bool(flags & 0x04),
         )
 
 

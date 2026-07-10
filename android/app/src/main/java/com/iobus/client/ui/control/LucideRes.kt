@@ -31,6 +31,11 @@ object LucideRes {
     @DrawableRes val Moon = R.drawable.ic_moon
     @DrawableRes val RotateCcw = R.drawable.ic_rotate_ccw
 
+    // Battery
+    @DrawableRes val Battery = R.drawable.ic_battery
+    @DrawableRes val BatteryLow = R.drawable.ic_battery_low
+    @DrawableRes val BatteryCharging = R.drawable.ic_battery_charging
+
     // Brightness
     @DrawableRes val Sun = R.drawable.ic_sun
     @DrawableRes val SunDim = R.drawable.ic_sun_dim
