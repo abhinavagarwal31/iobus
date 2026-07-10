@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import ctypes
 import logging
+import plistlib
 import re
 import subprocess
 
@@ -133,12 +134,34 @@ class SystemActions:
 
     @staticmethod
     def get_battery_status() -> tuple[float, bool]:
-        """Get (battery_percentage, is_charging) in a single `pmset` call.
+        """Get (battery_percentage, is_charging aka plugged into AC).
 
-        Parses `pmset -g batt` output, e.g.:
-            "Now drawing from 'AC Power'\\n -InternalBattery-0 (id=...) 99%; finishing charge; ..."
-        Returns (1.0, False) as a fallback (e.g. desktop Macs with no battery, or parse failure).
+        Strategy 1: `ioreg` AppleSmartBattery registry entry — reads the
+            battery controller directly, reflecting a plug/unplug within
+            ~1-2 seconds.
+        Strategy 2: `pmset -g batt` text parsing — fallback only. Its summary
+            is refreshed on its own internal cadence and can lag the actual
+            physical state by up to ~30 seconds, so it's not used as primary.
+        Returns (1.0, False) as a safe default if both fail (e.g. desktop
+        Macs with no battery).
         """
+        try:
+            result = subprocess.run(
+                ["ioreg", "-rn", "AppleSmartBattery", "-a"],
+                capture_output=True, timeout=3,
+            )
+            if result.returncode == 0 and result.stdout:
+                data = plistlib.loads(result.stdout)
+                entry = data[0] if isinstance(data, list) else data
+                current = entry.get("CurrentCapacity")
+                maximum = entry.get("MaxCapacity")
+                connected = entry.get("ExternalConnected")
+                if current is not None and maximum:
+                    percentage = max(0.0, min(1.0, current / maximum))
+                    return percentage, bool(connected)
+        except Exception:
+            pass
+
         try:
             result = subprocess.run(
                 ["pmset", "-g", "batt"],

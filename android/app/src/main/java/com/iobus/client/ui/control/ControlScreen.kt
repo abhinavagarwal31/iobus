@@ -355,7 +355,7 @@ private fun HomeScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center,
                 ) {
-                    val batteryLabel = if (state.isCharging) "CHARGING" else "${state.batteryPercent}%"
+                    val batteryLabel = "${state.batteryPercent}%"
                     val batteryColor = when {
                         state.isCharging -> HudGreen
                         state.batteryPercent <= 20 -> HudRed
@@ -372,6 +372,7 @@ private fun HomeScreen(
                         iconRes = batteryIcon,
                         color = batteryColor,
                         modifier = Modifier.fillMaxWidth(0.5f),
+                        subtitle = if (state.isCharging) "CHARGING" else null,
                     )
                 }
             }
@@ -532,6 +533,7 @@ private fun StatusPill(
     @DrawableRes iconRes: Int,
     color: Color,
     modifier: Modifier = Modifier,
+    subtitle: String? = null,
 ) {
     Column(
         modifier = modifier
@@ -541,13 +543,30 @@ private fun StatusPill(
             .padding(horizontal = 10.dp, vertical = 7.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(
-            text = title,
-            color = HudTextSecondary.copy(alpha = 0.72f),
-            fontSize = 7.sp,
-            fontWeight = FontWeight.Medium,
-            letterSpacing = 1.2.sp,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                color = HudTextSecondary.copy(alpha = 0.72f),
+                fontSize = 7.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 1.2.sp,
+            )
+
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    color = color.copy(alpha = 0.85f),
+                    fontSize = 6.5.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.8.sp,
+                    maxLines = 1,
+                )
+            }
+        }
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -564,6 +583,7 @@ private fun StatusPill(
                 fontSize = 9.sp,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 1.4.sp,
+                maxLines = 1,
             )
         }
     }
