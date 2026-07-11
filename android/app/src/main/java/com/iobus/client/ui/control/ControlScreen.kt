@@ -45,7 +45,8 @@ import kotlinx.coroutines.launch
  *  - HOME: portrait, navigation-only landing (header, connection, mode selector, lock/power row)
  *  - CONTROLS: sensor orientation (adapts to portrait/landscape), full-screen control center
  *  - KEYBOARD: landscape, full keyboard
- *  - TRACKPAD: landscape, full trackpad
+ *  - TRACKPAD: sensor orientation (adapts to portrait/landscape), full trackpad —
+ *    portrait enables one-handed use
  *  - COMBINED: landscape, split trackpad (left) + keyboard (right)
  *
  * Home screen shows no content — only mode selector navigation.
@@ -79,7 +80,8 @@ fun ControlScreen(
     // Manage orientation based on mode (re-apply on configuration changes)
     LaunchedEffect(inputMode, configuration) {
         activity?.requestedOrientation = when {
-            inputMode == InputMode.CONTROLS -> ActivityInfo.SCREEN_ORIENTATION_SENSOR
+            inputMode == InputMode.CONTROLS || inputMode == InputMode.TRACKPAD ->
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR
             inputMode.isLandscape -> ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
             else -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         }
