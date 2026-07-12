@@ -142,8 +142,9 @@ class SystemActions:
         Strategy 2: `pmset -g batt` text parsing — fallback only. Its summary
             is refreshed on its own internal cadence and can lag the actual
             physical state by up to ~30 seconds, so it's not used as primary.
-        Returns (1.0, False) as a safe default if both fail (e.g. desktop
-        Macs with no battery).
+        Returns (1.0, True) as a safe default if both fail — assuming AC
+        power (e.g. a desktop Mac with no battery) is the safer failure
+        mode than implying a laptop is stranded on a draining battery.
         """
         try:
             result = subprocess.run(
@@ -175,7 +176,7 @@ class SystemActions:
                 return percentage, is_charging
         except (subprocess.SubprocessError, FileNotFoundError, IndexError):
             pass
-        return 1.0, False  # safe default
+        return 1.0, True  # safe default — assume AC power
 
     @staticmethod
     def get_screen_lock_status() -> bool:
