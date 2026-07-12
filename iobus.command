@@ -28,7 +28,8 @@ echo $! > "$PIDFILE"
 echo "Server started (PID $(cat "$PIDFILE")). Logs: $LOG"
 echo "IP Address: $IP_ADDR"
 echo ""
-echo "To stop later, run:  kill \$(cat $PIDFILE)"
+echo "To stop later, double-click iobus-stop.command (or run: kill \$(cat $PIDFILE))"
 echo ""
-echo "This window will close in 3 seconds."
-sleep 3
+echo "This window will close in 10 seconds."
+sleep 10
+osascript -e 'tell application "Terminal" to close (every window whose tty is "'"$(tty)"'")' >/dev/null 2>&1 &
