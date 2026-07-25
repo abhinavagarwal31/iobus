@@ -49,6 +49,8 @@ object LucideRes {
     @DrawableRes val SkipBack = R.drawable.ic_skip_back
     @DrawableRes val Play = R.drawable.ic_play
     @DrawableRes val SkipForward = R.drawable.ic_skip_forward
+    @DrawableRes val ChevronsLeft = R.drawable.ic_chevrons_left
+    @DrawableRes val ChevronsRight = R.drawable.ic_chevrons_right
 
     // Navigation / settings
     @DrawableRes val Settings     = R.drawable.ic_settings

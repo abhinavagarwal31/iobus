@@ -1,9 +1,12 @@
 package com.iobus.client.ui.control
 
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -16,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import com.iobus.client.network.ConnectionManager
 import com.iobus.client.protocol.KeyCodes
 import com.iobus.client.ui.theme.*
+import kotlinx.coroutines.delay
 
 /**
  * Adaptive Controls panel — detects orientation and renders appropriately.
@@ -96,6 +100,12 @@ fun ControlsPanel(
                 vertical = false,
                 modifier = Modifier.fillMaxWidth(),
             )
+
+            // Seek controls: 10s back / forward
+            SeekControlsRow(
+                connectionManager = connectionManager,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     } else {
         // Portrait: vertical sliders side by side
@@ -149,6 +159,12 @@ fun ControlsPanel(
             MediaControlsRow(
                 connectionManager = connectionManager,
                 vertical = false,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            // Seek controls: 10s back / forward
+            SeekControlsRow(
+                connectionManager = connectionManager,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -234,19 +250,81 @@ private fun MediaControlsRow(
     }
 }
 
+/**
+ * Seek controls — sends left/right arrow key events, which most media apps
+ * (browsers, QuickTime, VLC, streaming apps) interpret as a 10s skip.
+ */
+@Composable
+private fun SeekControlsRow(
+    connectionManager: ConnectionManager,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(HudSurface)
+            .border(0.5.dp, HudSurfaceBorder, RoundedCornerShape(10.dp))
+            .padding(vertical = 12.dp, horizontal = 8.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        MediaButton(
+            iconRes = LucideRes.ChevronsLeft,
+            repeatOnHold = true,
+        ) {
+            connectionManager.sendKeyEvent(KeyCodes.KEY_ARROW_LEFT, ACTION_DOWN)
+            connectionManager.sendKeyEvent(KeyCodes.KEY_ARROW_LEFT, ACTION_UP)
+        }
+
+        MediaButton(
+            iconRes = LucideRes.ChevronsRight,
+            repeatOnHold = true,
+        ) {
+            connectionManager.sendKeyEvent(KeyCodes.KEY_ARROW_RIGHT, ACTION_DOWN)
+            connectionManager.sendKeyEvent(KeyCodes.KEY_ARROW_RIGHT, ACTION_UP)
+        }
+    }
+}
+
+// Hold-to-repeat timing (mirrors standard OS key-repeat: short initial delay, then fast repeat)
+private const val REPEAT_INITIAL_DELAY_MS = 400L
+private const val REPEAT_INTERVAL_MS = 120L
+
 @Composable
 private fun MediaButton(
     @DrawableRes iconRes: Int,
     size: Int = 30,
+    repeatOnHold: Boolean = false,
     onClick: () -> Unit,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+
+    if (repeatOnHold) {
+        LaunchedEffect(isPressed) {
+            if (isPressed) {
+                onClick()
+                delay(REPEAT_INITIAL_DELAY_MS)
+                while (isPressed) {
+                    onClick()
+                    delay(REPEAT_INTERVAL_MS)
+                }
+            }
+        }
+    }
+
     Box(
         modifier = Modifier
             .size(56.dp)
             .clip(CircleShape)
             .background(HudSurfaceElevated)
             .border(0.5.dp, HudSurfaceBorder, CircleShape)
-            .clickable { onClick() },
+            .clickable(
+                interactionSource = interactionSource,
+                indication = LocalIndication.current,
+                // Repeating buttons fire from the hold loop above; a plain click would double-fire.
+                onClick = { if (!repeatOnHold) onClick() },
+            ),
         contentAlignment = Alignment.Center,
     ) {
         HudIcon(
