@@ -6,8 +6,8 @@ PIDFILE="/tmp/iobus-server.pid"
 # Wait, then close this Terminal window (matched by tty, so only this window closes)
 close_window() {
     echo ""
-    echo "This window will close in 10 seconds."
-    sleep 10
+    echo "This window will close in 5 seconds."
+    sleep 5
     osascript -e 'tell application "Terminal" to close (every window whose tty is "'"$(tty)"'")' >/dev/null 2>&1 &
 }
 
