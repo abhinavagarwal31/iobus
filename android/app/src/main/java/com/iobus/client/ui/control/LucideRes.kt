@@ -27,6 +27,7 @@ object LucideRes {
 
     // System actions
     @DrawableRes val Lock = R.drawable.ic_lock
+    @DrawableRes val LockOpen = R.drawable.ic_lock_open
     @DrawableRes val Power = R.drawable.ic_power
     @DrawableRes val Moon = R.drawable.ic_moon
     @DrawableRes val RotateCcw = R.drawable.ic_rotate_ccw

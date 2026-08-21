@@ -325,10 +325,11 @@ private fun HomeScreen(
                 ) {
                     val lockLabel = if (state.isLocked) "LOCKED" else "UNLOCKED"
                     val lockColor = if (state.isLocked) HudAmber else HudGreen
+                    val lockIcon = if (state.isLocked) LucideRes.Lock else LucideRes.LockOpen
                     StatusPill(
                         title = "SECURITY",
                         label = lockLabel,
-                        iconRes = LucideRes.Lock,
+                        iconRes = lockIcon,
                         color = lockColor,
                         modifier = Modifier.weight(1f),
                     )
