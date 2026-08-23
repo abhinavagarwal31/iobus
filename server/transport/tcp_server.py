@@ -344,16 +344,19 @@ class TCPControlProtocol(asyncio.Protocol):
         locked = SystemActions.get_screen_lock_status()
         activity = SystemActions.get_activity_status()
         idle_time = SystemActions.get_idle_time()
-        battery_pct, charging = SystemActions.get_battery_status()
-        battery = int(battery_pct * 100)
+        batt = SystemActions.get_battery_status()
+        battery = int(batt.percentage * 100)
         logger.info(
-            "System state request → brightness=%.2f, volume=%.2f, muted=%s, locked=%s, activity=%s, battery=%d%%, charging=%s",
-            brightness, volume, muted, locked, activity, battery, charging
+            "System state request → brightness=%.2f, volume=%.2f, muted=%s, locked=%s, activity=%s, "
+            "battery=%d%%, charging=%s, external_connected=%s, has_battery=%s",
+            brightness, volume, muted, locked, activity, battery,
+            batt.is_charging, batt.external_connected, batt.has_battery,
         )
         resp = SystemStateResponse(
             brightness=brightness, volume=volume, is_muted=muted,
             is_locked=locked, activity_status=activity, idle_time=idle_time,
-            battery_percent=battery, is_charging=charging,
+            battery_percent=battery, is_charging=batt.is_charging,
+            external_connected=batt.external_connected, has_battery=batt.has_battery,
         )
         self._send(resp.encode())
 
@@ -377,21 +380,24 @@ class TCPControlProtocol(asyncio.Protocol):
             last_l = await loop.run_in_executor(None, SystemActions.get_screen_lock_status)
             last_a = await loop.run_in_executor(None, SystemActions.get_activity_status)
             last_i = await loop.run_in_executor(None, SystemActions.get_idle_time)
-            last_batt_pct, last_c = await loop.run_in_executor(None, SystemActions.get_battery_status)
-            last_batt = int(last_batt_pct * 100)
+            last_batt_obj = await loop.run_in_executor(None, SystemActions.get_battery_status)
+            last_batt = int(last_batt_obj.percentage * 100)
+            last_c, last_ext, last_hb = last_batt_obj.is_charging, last_batt_obj.external_connected, last_batt_obj.has_battery
         except Exception:
             last_b, last_v, last_m, last_l, last_a, last_i = 0.5, 0.5, False, False, "active", 0.0
-            last_batt, last_c = 100, False
+            last_batt, last_c, last_ext, last_hb = 100, False, True, True
 
         # Push initial state so the app syncs all values immediately
         self._send(SystemStateResponse(
             brightness=last_b, volume=last_v, is_muted=last_m,
             is_locked=last_l, activity_status=last_a, idle_time=last_i,
             battery_percent=last_batt, is_charging=last_c,
+            external_connected=last_ext, has_battery=last_hb,
         ).encode())
         logger.debug(
-            "State watcher: initial push brightness=%.2f volume=%.2f muted=%s locked=%s activity=%s battery=%d%% charging=%s",
-            last_b, last_v, last_m, last_l, last_a, last_batt, last_c
+            "State watcher: initial push brightness=%.2f volume=%.2f muted=%s locked=%s activity=%s "
+            "battery=%d%% charging=%s external_connected=%s has_battery=%s",
+            last_b, last_v, last_m, last_l, last_a, last_batt, last_c, last_ext, last_hb
         )
 
         try:
@@ -415,25 +421,28 @@ class TCPControlProtocol(asyncio.Protocol):
                     v = await loop.run_in_executor(None, SystemActions.get_volume)
                     m = await loop.run_in_executor(None, SystemActions.get_mute)
                     l = await loop.run_in_executor(None, SystemActions.get_screen_lock_status)
-                    batt_pct, c = await loop.run_in_executor(None, SystemActions.get_battery_status)
-                    batt = int(batt_pct * 100)
+                    batt_obj = await loop.run_in_executor(None, SystemActions.get_battery_status)
+                    batt = int(batt_obj.percentage * 100)
+                    c, ext, hb = batt_obj.is_charging, batt_obj.external_connected, batt_obj.has_battery
                 except Exception:
                     continue
 
                 # Push update if any value changed
                 if (abs(b - last_b) > 0.005 or abs(v - last_v) > 0.005 or
                     m != last_m or l != last_l or a != last_a or
-                    batt != last_batt or c != last_c):
+                    batt != last_batt or c != last_c or ext != last_ext or hb != last_hb):
                     last_b, last_v, last_m, last_l, last_a, last_i = b, v, m, l, a, i
-                    last_batt, last_c = batt, c
+                    last_batt, last_c, last_ext, last_hb = batt, c, ext, hb
                     self._send(SystemStateResponse(
                         brightness=b, volume=v, is_muted=m,
                         is_locked=l, activity_status=a, idle_time=i,
                         battery_percent=batt, is_charging=c,
+                        external_connected=ext, has_battery=hb,
                     ).encode())
                     logger.debug(
-                        "State watcher: push change brightness=%.2f volume=%.2f muted=%s locked=%s activity=%s battery=%d%% charging=%s",
-                        b, v, m, l, a, batt, c
+                        "State watcher: push change brightness=%.2f volume=%.2f muted=%s locked=%s activity=%s "
+                        "battery=%d%% charging=%s external_connected=%s has_battery=%s",
+                        b, v, m, l, a, batt, c, ext, hb
                     )
         except asyncio.CancelledError:
             pass  # Normal on disconnect

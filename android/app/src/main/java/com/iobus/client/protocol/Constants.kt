@@ -6,7 +6,7 @@ package com.iobus.client.protocol
  * These values MUST stay in sync with the server definitions.
  */
 object Constants {
-    const val PROTOCOL_VERSION: Int = 4  // v1.8.0: Added battery percentage/charging status
+    const val PROTOCOL_VERSION: Int = 5  // v1.9.0: Added AC-power/no-battery detection
 
     const val DEFAULT_TCP_PORT: Int = 9800
     const val DEFAULT_UDP_PORT: Int = 9801

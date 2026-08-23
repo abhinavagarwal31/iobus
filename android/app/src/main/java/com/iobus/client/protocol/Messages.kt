@@ -99,7 +99,9 @@ data class SystemStateData(
     val activityStatus: String,  // "active", "idle", or "away"
     val idleTime: Int,  // seconds
     val batteryPercent: Int = 100,  // 0-100
-    val isCharging: Boolean = false,
+    val isCharging: Boolean = false,  // actively drawing charge current
+    val externalConnected: Boolean = true,  // plugged into AC power
+    val hasBattery: Boolean = true,  // false for desktop Macs with no battery hardware
 )
 
 /**
@@ -394,6 +396,20 @@ object Messages {
             batteryPercent = 100
         }
 
+        val isCharging = (flags and 0x04) != 0
+
+        // Backward compatibility: power_flags byte only present on protocol v5+ (11 bytes total)
+        val externalConnected: Boolean
+        val hasBattery: Boolean
+        if (payload.size >= 11) {
+            val powerFlags = buf.get().toInt() and 0xFF
+            externalConnected = (powerFlags and 0x01) != 0
+            hasBattery = (powerFlags and 0x02) != 0
+        } else {
+            externalConnected = isCharging
+            hasBattery = true
+        }
+
         return SystemStateData(
             brightness = brightness,
             volume = volume,
@@ -402,7 +418,9 @@ object Messages {
             activityStatus = activityStatus,
             idleTime = idleTime,
             batteryPercent = batteryPercent,
-            isCharging = (flags and 0x04) != 0,
+            isCharging = isCharging,
+            externalConnected = externalConnected,
+            hasBattery = hasBattery,
         )
     }
 

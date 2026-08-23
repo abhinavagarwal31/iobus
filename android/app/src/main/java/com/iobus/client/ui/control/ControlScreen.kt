@@ -22,8 +22,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -358,25 +364,48 @@ private fun HomeScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center,
                 ) {
-                    val batteryLabel = "${state.batteryPercent}%"
-                    val batteryColor = when {
-                        state.isCharging -> HudGreen
-                        state.batteryPercent <= 20 -> HudRed
-                        else -> HudCyan
+                    when {
+                        // Desktop Mac — no battery hardware at all.
+                        !state.hasBattery -> StatusPill(
+                            title = "POWER",
+                            label = "AC POWER",
+                            iconRes = LucideRes.Zap,
+                            color = HudGreen,
+                            modifier = Modifier.fillMaxWidth(0.5f),
+                        )
+                        // Battery actively drawing charge current.
+                        state.isCharging -> StatusPill(
+                            title = "POWER",
+                            label = "${state.batteryPercent}%",
+                            iconRes = LucideRes.BatteryCharging,
+                            color = HudGreen,
+                            modifier = Modifier.fillMaxWidth(0.5f),
+                            subtitle = "CHARGING",
+                        )
+                        // On AC but not charging (e.g. battery already full).
+                        state.externalConnected -> AcPowerPulsePill(
+                            modifier = Modifier.fillMaxWidth(0.5f),
+                        )
+                        // Running off battery.
+                        else -> {
+                            val batteryColor = if (state.batteryPercent <= 20) HudRed else HudCyan
+                            StatusPill(
+                                title = "POWER",
+                                label = "${state.batteryPercent}%",
+                                iconRes = LucideRes.Battery,
+                                color = batteryColor,
+                                modifier = Modifier.fillMaxWidth(0.5f),
+                                subtitle = "BATTERY",
+                                customIcon = {
+                                    BatteryLevelIcon(
+                                        percent = state.batteryPercent,
+                                        color = batteryColor,
+                                        modifier = Modifier.size(width = 20.dp, height = 14.dp),
+                                    )
+                                },
+                            )
+                        }
                     }
-                    val batteryIcon = when {
-                        state.isCharging -> LucideRes.BatteryCharging
-                        state.batteryPercent <= 20 -> LucideRes.BatteryLow
-                        else -> LucideRes.Battery
-                    }
-                    StatusPill(
-                        title = "POWER",
-                        label = batteryLabel,
-                        iconRes = batteryIcon,
-                        color = batteryColor,
-                        modifier = Modifier.fillMaxWidth(0.5f),
-                        subtitle = if (state.isCharging) "CHARGING" else null,
-                    )
                 }
             }
         }
@@ -537,6 +566,7 @@ private fun StatusPill(
     color: Color,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
+    customIcon: (@Composable () -> Unit)? = null,
 ) {
     Column(
         modifier = modifier
@@ -575,11 +605,15 @@ private fun StatusPill(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            HudIcon(
-                iconRes = iconRes,
-                tint = color.copy(alpha = 0.92f),
-                modifier = Modifier.size(14.dp),
-            )
+            if (customIcon != null) {
+                customIcon()
+            } else {
+                HudIcon(
+                    iconRes = iconRes,
+                    tint = color.copy(alpha = 0.92f),
+                    modifier = Modifier.size(14.dp),
+                )
+            }
             Text(
                 text = label,
                 color = color.copy(alpha = 0.9f),
@@ -589,6 +623,128 @@ private fun StatusPill(
                 maxLines = 1,
             )
         }
+    }
+}
+
+// ─────────────────────────────────────────────────────────
+// AC Power Pill — plugged into AC, battery not actively charging
+// (e.g. battery already full). Same footprint as StatusPill —
+// title row + single content row — so the pill never resizes
+// when power state changes.
+// ─────────────────────────────────────────────────────────
+
+@Composable
+private fun AcPowerPulsePill(modifier: Modifier = Modifier) {
+    val color = HudGreen
+
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(color.copy(alpha = 0.08f))
+            .border(0.5.dp, color.copy(alpha = 0.22f), RoundedCornerShape(8.dp))
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = "POWER",
+            color = HudTextSecondary.copy(alpha = 0.72f),
+            fontSize = 7.sp,
+            fontWeight = FontWeight.Medium,
+            letterSpacing = 1.2.sp,
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(3.dp, alignment = Alignment.CenterHorizontally),
+        ) {
+            Canvas(modifier = Modifier.size(width = 9.dp, height = 14.dp)) {
+                drawPulseGlyph(color = color)
+            }
+            Text(
+                text = "AC POWER",
+                color = color.copy(alpha = 0.9f),
+                fontSize = 9.sp,
+                fontWeight = FontWeight.SemiBold,
+                letterSpacing = 1.4.sp,
+                maxLines = 1,
+            )
+            Canvas(modifier = Modifier.size(width = 9.dp, height = 14.dp)) {
+                drawPulseGlyph(color = color)
+            }
+        }
+    }
+}
+
+/** Draws a small, static heart-rate-monitor style blip (no animation). */
+private fun DrawScope.drawPulseGlyph(color: Color) {
+    val w = size.width
+    val h = size.height
+    val midY = h / 2f
+
+    val path = Path().apply {
+        moveTo(0f, midY)
+        lineTo(w * 0.28f, midY)
+        lineTo(w * 0.45f, midY - h * 0.4f)
+        lineTo(w * 0.62f, midY + h * 0.4f)
+        lineTo(w * 0.8f, midY)
+        lineTo(w, midY)
+    }
+
+    drawPath(
+        path = path,
+        color = color.copy(alpha = 0.75f),
+        style = Stroke(width = 1.2.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
+    )
+}
+
+// ─────────────────────────────────────────────────────────
+// Battery Level Icon — outline fills proportionally to charge
+// ─────────────────────────────────────────────────────────
+
+@Composable
+private fun BatteryLevelIcon(percent: Int, color: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        drawBatteryLevel(percent = percent, color = color)
+    }
+}
+
+private fun DrawScope.drawBatteryLevel(percent: Int, color: Color) {
+    val strokeWidth = 1.2.dp.toPx()
+    val nubWidth = size.width * 0.12f
+    val nubGap = 1.dp.toPx()
+    val bodyWidth = size.width - nubWidth - nubGap
+    val bodyHeight = size.height
+    val cornerRadius = CornerRadius(2.dp.toPx(), 2.dp.toPx())
+
+    // Outline
+    drawRoundRect(
+        color = color,
+        size = Size(bodyWidth, bodyHeight),
+        cornerRadius = cornerRadius,
+        style = Stroke(width = strokeWidth),
+    )
+
+    // Terminal nub
+    val nubHeight = bodyHeight * 0.42f
+    drawRoundRect(
+        color = color,
+        topLeft = Offset(bodyWidth + nubGap, (bodyHeight - nubHeight) / 2f),
+        size = Size(nubWidth, nubHeight),
+        cornerRadius = CornerRadius(1.dp.toPx(), 1.dp.toPx()),
+    )
+
+    // Fill proportional to charge level
+    val inset = strokeWidth * 1.6f
+    val fillMaxWidth = bodyWidth - inset * 2f
+    val fillWidth = fillMaxWidth * (percent.coerceIn(0, 100) / 100f)
+    if (fillWidth > 0f) {
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(inset, inset),
+            size = Size(fillWidth, bodyHeight - inset * 2f),
+            cornerRadius = CornerRadius(1.dp.toPx(), 1.dp.toPx()),
+        )
     }
 }
 

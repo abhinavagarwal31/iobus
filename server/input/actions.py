@@ -16,12 +16,26 @@ import logging
 import plistlib
 import re
 import subprocess
+from typing import NamedTuple
 
 from protocol.keycodes import ProtocolKeyCode
 from protocol.messages import ModifierFlag
 from server.input.keyboard import KeyboardController
 
 logger = logging.getLogger(__name__)
+
+
+class BatteryStatus(NamedTuple):
+    """Battery/power-source snapshot.
+
+    `is_charging` and `external_connected` are deliberately distinct: a
+    laptop can be plugged into AC (external_connected) while its battery
+    sits at 100% and draws no current (is_charging == False).
+    """
+    percentage: float  # 0.0-1.0
+    is_charging: bool  # actively drawing charge current
+    external_connected: bool  # plugged into AC power
+    has_battery: bool  # False for desktop Macs with no battery hardware
 
 
 def _run_applescript(script: str, action_name: str, timeout: int = 5) -> bool:
@@ -133,17 +147,23 @@ class SystemActions:
         return False
 
     @staticmethod
-    def get_battery_status() -> tuple[float, bool]:
-        """Get (battery_percentage, is_charging aka plugged into AC).
+    def get_battery_status() -> BatteryStatus:
+        """Get battery percentage, charging state, AC-connection state, and
+        whether the machine has a battery at all.
 
         Strategy 1: `ioreg` AppleSmartBattery registry entry — reads the
             battery controller directly, reflecting a plug/unplug within
-            ~1-2 seconds.
+            ~1-2 seconds. `IsCharging` and `ExternalConnected` are read as
+            separate fields: a battery sitting at 100% on its charger is
+            ExternalConnected=True but IsCharging=False.
         Strategy 2: `pmset -g batt` text parsing — fallback only. Its summary
             is refreshed on its own internal cadence and can lag the actual
             physical state by up to ~30 seconds, so it's not used as primary.
-        Returns (1.0, True) as a safe default if both fail — assuming AC
-        power (e.g. a desktop Mac with no battery) is the safer failure
+        A desktop Mac (no battery hardware) has no `AppleSmartBattery` entry
+        and no `-InternalBattery-N` line in `pmset -g batt` — both strategies
+        fail to find a percentage, which is what signals `has_battery=False`.
+        Returns a fully-AC, no-battery status as the safe default if both
+        strategies fail outright — assuming AC power is the safer failure
         mode than implying a laptop is stranded on a draining battery.
         """
         try:
@@ -156,10 +176,11 @@ class SystemActions:
                 entry = data[0] if isinstance(data, list) else data
                 current = entry.get("CurrentCapacity")
                 maximum = entry.get("MaxCapacity")
-                connected = entry.get("ExternalConnected")
                 if current is not None and maximum:
                     percentage = max(0.0, min(1.0, current / maximum))
-                    return percentage, bool(connected)
+                    external_connected = bool(entry.get("ExternalConnected"))
+                    is_charging = bool(entry.get("IsCharging"))
+                    return BatteryStatus(percentage, is_charging, external_connected, has_battery=True)
         except Exception:
             pass
 
@@ -170,13 +191,22 @@ class SystemActions:
             )
             if result.returncode == 0:
                 lines = result.stdout.splitlines()
-                is_charging = "AC Power" in lines[0] if lines else False
+                external_connected = "AC Power" in lines[0] if lines else False
                 m = re.search(r'(\d+)%', result.stdout)
-                percentage = max(0.0, min(1.0, int(m.group(1)) / 100.0)) if m else 1.0
-                return percentage, is_charging
+                if m:
+                    percentage = max(0.0, min(1.0, int(m.group(1)) / 100.0))
+                    # e.g. "87%; charging; 0:32 remaining" — "discharging" also
+                    # contains "charging" as a substring, so match on the
+                    # leading word rather than a plain substring check.
+                    status_match = re.search(r'\d+%;\s*([a-z ]+);', result.stdout)
+                    status = status_match.group(1).strip() if status_match else ""
+                    is_charging = status.startswith("charging")
+                    return BatteryStatus(percentage, is_charging, external_connected, has_battery=True)
+                # No "-InternalBattery-N  NN%; ..." line at all — no battery hardware.
+                return BatteryStatus(1.0, False, external_connected, has_battery=False)
         except (subprocess.SubprocessError, FileNotFoundError, IndexError):
             pass
-        return 1.0, True  # safe default — assume AC power
+        return BatteryStatus(1.0, False, True, has_battery=False)  # safe default — assume AC power, no battery
 
     @staticmethod
     def get_screen_lock_status() -> bool:

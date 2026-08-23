@@ -128,7 +128,7 @@ MOUSE_SCROLL_FMT = ">Ihh"     # timestamp(u32), dx(i16), dy(i16)
 MOUSE_DRAG_FMT = ">IBhh"      # timestamp(u32), button(u8), dx(i16), dy(i16)
 KEY_EVENT_FMT = ">IBHB"       # timestamp(u32), action(u8), keycode(u16), modifiers(u8)
 SYSTEM_ACTION_FMT = ">IB"      # timestamp(u32), action_id(u8)
-SYSTEM_STATE_RESPONSE_FMT = ">HHHBHB"  # brightness(u16), volume(u16), flags(u16), activity_status(u8), idle_time(u16), battery_percent(u8)
+SYSTEM_STATE_RESPONSE_FMT = ">HHHBHBB"  # brightness(u16), volume(u16), flags(u16), activity_status(u8), idle_time(u16), battery_percent(u8), power_flags(u8)
 ACK_FMT = ">B"                # app_id(u8)
 COMMAND_ERROR_FMT = ">B"      # app_id(u8)
 
@@ -460,7 +460,9 @@ class SystemStateResponse:
     activity_status: str = "active"  # 'active', 'idle', 'away'
     idle_time: float = 0.0  # seconds
     battery_percent: int = 100  # 0-100
-    is_charging: bool = False
+    is_charging: bool = False  # actively drawing charge current
+    external_connected: bool = True  # plugged into AC (may or may not be charging)
+    has_battery: bool = True  # False for desktop Macs with no battery hardware
 
     def encode(self) -> bytes:
         b = int(self.brightness * 100) & 0xFFFF
@@ -478,14 +480,18 @@ class SystemStateResponse:
         # Clamp idle time to u16 range (0-65535 seconds, ~18 hours)
         idle = int(min(self.idle_time, 65535)) & 0xFFFF
         battery = max(0, min(100, self.battery_percent)) & 0xFF
+        power_flags = (
+            (0x01 if self.external_connected else 0)
+            | (0x02 if self.has_battery else 0)
+        )
 
-        payload = struct.pack(SYSTEM_STATE_RESPONSE_FMT, b, v, flags, activity, idle, battery)
+        payload = struct.pack(SYSTEM_STATE_RESPONSE_FMT, b, v, flags, activity, idle, battery, power_flags)
         header = Header(PROTOCOL_VERSION, MessageType.SYSTEM_STATE_RESPONSE, len(payload))
         return header.encode() + payload
 
     @classmethod
     def decode(cls, payload: bytes) -> Self:
-        b, v, flags, activity, idle, battery = struct.unpack(
+        b, v, flags, activity, idle, battery, power_flags = struct.unpack(
             SYSTEM_STATE_RESPONSE_FMT, payload[:SYSTEM_STATE_RESPONSE_SIZE]
         )
 
@@ -502,6 +508,8 @@ class SystemStateResponse:
             idle_time=float(idle),
             battery_percent=battery,
             is_charging=bool(flags & 0x04),
+            external_connected=bool(power_flags & 0x01),
+            has_battery=bool(power_flags & 0x02),
         )
 
 

@@ -6,7 +6,7 @@ These are the canonical definitions — the Android client mirrors them.
 """
 
 # Protocol version
-PROTOCOL_VERSION: int = 4  # v1.8.0: Added battery percentage/charging status
+PROTOCOL_VERSION: int = 5  # v1.9.0: Added AC-power/no-battery detection
 
 # Default network ports
 DEFAULT_TCP_PORT: int = 9800
