@@ -552,7 +552,20 @@ class TCPControlServer:
         """Shut down the TCP server."""
         if self._keepalive_task:
             self._keepalive_task.cancel()
+
+        # Force-close any open client connections. On Python 3.12+,
+        # wait_closed() blocks until already-accepted connections finish
+        # too, so a client that never disconnects (e.g. a connected phone)
+        # would hang shutdown indefinitely.
+        for proto in self._protocols:
+            if proto._transport:
+                proto._transport.close()
+        self._client = None
+
         if self._server:
             self._server.close()
-            await self._server.wait_closed()
+            try:
+                await asyncio.wait_for(self._server.wait_closed(), timeout=2)
+            except asyncio.TimeoutError:
+                logger.warning("TCP server wait_closed() timed out — forcing shutdown")
         logger.info("TCP control server stopped")
