@@ -32,4 +32,13 @@ echo "To stop later, double-click iobus-stop.command (or run: kill \$(cat $PIDFI
 echo ""
 echo "This window will close in 10 seconds."
 sleep 10
-osascript -e 'tell application "Terminal" to close (every window whose tty is "'"$(tty)"'")' >/dev/null 2>&1 &
+CUR_TTY="$(tty)"
+osascript <<APPLESCRIPT >/dev/null 2>&1 &
+tell application "Terminal"
+    if (count of windows) <= 1 then
+        quit
+    else
+        close (every window whose tty is "$CUR_TTY")
+    end if
+end tell
+APPLESCRIPT

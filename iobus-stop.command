@@ -8,7 +8,16 @@ close_window() {
     echo ""
     echo "This window will close in 5 seconds."
     sleep 5
-    osascript -e 'tell application "Terminal" to close (every window whose tty is "'"$(tty)"'")' >/dev/null 2>&1 &
+    CUR_TTY="$(tty)"
+    osascript <<APPLESCRIPT >/dev/null 2>&1 &
+tell application "Terminal"
+    if (count of windows) <= 1 then
+        quit
+    else
+        close (every window whose tty is "$CUR_TTY")
+    end if
+end tell
+APPLESCRIPT
 }
 
 if [ ! -f "$PIDFILE" ]; then
