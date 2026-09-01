@@ -381,6 +381,14 @@ private fun HomeScreen(
                             color = HudGreen,
                             modifier = Modifier.fillMaxWidth(0.5f),
                             subtitle = "CHARGING",
+                            customIcon = {
+                                BatteryLevelIcon(
+                                    percent = state.batteryPercent,
+                                    color = HudGreen,
+                                    charging = true,
+                                    modifier = Modifier.size(width = 20.dp, height = 14.dp),
+                                )
+                            },
                         )
                         // On AC but not charging (e.g. battery already full).
                         state.externalConnected -> AcPowerPulsePill(
@@ -703,10 +711,38 @@ private fun DrawScope.drawPulseGlyph(color: Color) {
 // ─────────────────────────────────────────────────────────
 
 @Composable
-private fun BatteryLevelIcon(percent: Int, color: Color, modifier: Modifier = Modifier) {
+private fun BatteryLevelIcon(
+    percent: Int,
+    color: Color,
+    modifier: Modifier = Modifier,
+    charging: Boolean = false,
+) {
     Canvas(modifier = modifier) {
         drawBatteryLevel(percent = percent, color = color)
+        if (charging) {
+            drawChargingBolt(color = color)
+        }
     }
+}
+
+/** Draws a lightning bolt over the battery glyph, bordered in black for separation from the fill beneath. */
+private fun DrawScope.drawChargingBolt(color: Color) {
+    // Center within the battery body only (excludes the terminal nub), matching drawBatteryLevel's geometry.
+    val nubWidth = size.width * 0.12f
+    val nubGap = 1.dp.toPx()
+    val w = size.width - nubWidth - nubGap
+    val h = size.height
+    val bolt = Path().apply {
+        moveTo(w * 0.56f, 0f)
+        lineTo(w * 0.30f, h * 0.58f)
+        lineTo(w * 0.46f, h * 0.58f)
+        lineTo(w * 0.40f, h)
+        lineTo(w * 0.68f, h * 0.40f)
+        lineTo(w * 0.52f, h * 0.40f)
+        close()
+    }
+    drawPath(path = bolt, color = Color.Black.copy(alpha = 0.85f), style = Stroke(width = 2.2.dp.toPx(), join = StrokeJoin.Round))
+    drawPath(path = bolt, color = color)
 }
 
 private fun DrawScope.drawBatteryLevel(percent: Int, color: Color) {
